@@ -1,0 +1,13 @@
+ipykernel
+ipython
+ipywidgets
+numpy
+pandas
+matplotlib
+seaborn
+wandb
+Pillow
+torch
+torchvision
+tqdm
+einops
