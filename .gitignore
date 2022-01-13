@@ -128,21 +128,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-
+# custom ignores
 tester.ipynb
-data/cifar-100-python/train
-data/cifar-100-python/test
-data/cifar-100-python/file.txt~
-data/cifar-10-python.tar.gz
-data/cifar-10-batches-py/data_batch_5
-data/cifar-10-batches-py/data_batch_4
-data/cifar-10-batches-py/data_batch_3
-data/cifar-10-batches-py/data_batch_2
-data/cifar-10-batches-py/batches.meta
-data/cifar-10-batches-py/data_batch_1
-data/cifar-10-batches-py/readme.html
-data/cifar-10-batches-py/test_batch
-data/cifar-100-python.tar.gz
+data/cifar-100-python/*
+data/cifar-10-batches-py/*
 data/cifar-100-python/meta
-data/*.zip
-
+data/Imagenet32_train/*
+data/Imagenet32_val/*
+data/*/*.zip
+data/*/*.mdb
+data/*.gz
