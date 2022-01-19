@@ -139,3 +139,4 @@ data/*/*.zip
 data/*/*.mdb
 data/*.gz
 results/
+data/MNIST/*
