@@ -6,23 +6,23 @@ from torch.utils.data import DataLoader
 DATA_ROOT = './data/'
 
 
-def download_datasets() -> None:
+def download_datasets(data_root=DATA_ROOT) -> None:
     """Downloads the following datasets: Cifar10, Cifar100, ..."""
     # _ = CelebA(DATA_ROOT, download=True)
     print('Downloading CIFAR10')
-    _ = CIFAR10(DATA_ROOT, download=True)
+    _ = CIFAR10(data_root, download=True)
     print('Downloading CIFAR100')
-    _ = CIFAR100(DATA_ROOT, download=True)
+    _ = CIFAR100(data_root, download=True)
 
 
-def get_dataloader(config, train=True) -> DataLoader:
+def get_dataloader(config, train=True, data_root=DATA_ROOT) -> DataLoader:
     """Returns dataloader for dataset specified in config"""
 
     # Define transforms to perform on each individual image
     data_transform = [
+        ToTensor(),
         Resize(config['image_size']),
         CenterCrop(config['image_size']),
-        ToTensor(),
         # Normalize()
     ]
     data_transform = Compose(data_transform)
@@ -30,9 +30,9 @@ def get_dataloader(config, train=True) -> DataLoader:
     # Get data
     data_args = {'download': False, 'transform': data_transform, 'train': train}
     if config['dataset'] == 'cifar10':
-        data = CIFAR10(DATA_ROOT, **data_args)
+        data = CIFAR10(data_root, **data_args)
     elif config['dataset'] == 'cifar100':
-        data = CIFAR100(DATA_ROOT, **data_args)
+        data = CIFAR100(data_root, **data_args)
     else:
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
 
