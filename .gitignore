@@ -132,3 +132,4 @@ dmypy.json
 tester.ipynb
 results/
 bsub_logs/*
+wandb/*
