@@ -130,13 +130,5 @@ dmypy.json
 
 # custom ignores
 tester.ipynb
-data/cifar-100-python/*
-data/cifar-10-batches-py/*
-data/cifar-100-python/meta
-data/Imagenet32_train/*
-data/Imagenet32_val/*
-data/*/*.zip
-data/*/*.mdb
-data/*.gz
 results/
-data/MNIST/*
+bsub_logs/*
