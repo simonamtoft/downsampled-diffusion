@@ -28,10 +28,12 @@ else:
     color_channels = 3
 
 # Define DDPM model
+unet_dims = (1, 2, 4) #, 8
+print(f"U-net with {unet_dims}")
 model = Unet(
     dim = 64,
     channels = color_channels,
-    dim_mults = (1, 2), # , 4, 8
+    dim_mults = unet_dims,
 ).to(config['device'])
 diffusion = GaussianDiffusion(
     model,
