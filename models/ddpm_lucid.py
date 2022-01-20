@@ -1,5 +1,6 @@
 import math
 import copy
+import wandb
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -520,6 +521,7 @@ class Trainer(object):
         self.opt = Adam(diffusion_model.parameters(), lr=train_lr)
 
         self.device = config['device']
+        self.config = config
 
         self.step = 0
 
@@ -559,14 +561,24 @@ class Trainer(object):
         self.ema_model.load_state_dict(data['ema'])
 
     def train(self):
+        # Initialize a new wandb run
+        wandb.init(project='ddpm-test', config=self.config)
+        wandb.watch(self.model)
+
         backwards = partial(loss_backwards, self.fp16)
 
         while self.step < self.train_num_steps:
+            train_loss = []
             for i in range(self.gradient_accumulate_every):
                 data = next(self.dl)[0].to(self.device)
                 loss = self.model(data)
                 print(f'{self.step}: {loss.item()}')
                 backwards(loss / self.gradient_accumulate_every, self.opt)
+                train_loss.append(loss.item())
+            
+            # log to wandb
+            train_loss = np.array(train_loss).mean()
+            wandb.log({'train_loss': train_loss}, commit=True)
 
             self.opt.step()
             self.opt.zero_grad()
