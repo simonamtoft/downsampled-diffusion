@@ -1,1 +1,2 @@
-from .ddpm_lucid import Unet, GaussianDiffusion, Trainer
+from .ddpm_lucid import GaussianDiffusion, Trainer
+from .unet import Unet
