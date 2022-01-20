@@ -48,9 +48,11 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
         # Normalize()
     ]
     data_transform = Compose(data_transform)
+    
+    # Initialize data arguments
+    data_args = {'download': False, 'transform': data_transform, 'train': train}
 
     # Get data
-    data_args = {'download': False, 'transform': data_transform, 'train': train}
     if config['dataset'] == 'cifar10':
         data = CIFAR10(data_root, **data_args)
     elif config['dataset'] == 'cifar100':
@@ -59,6 +61,9 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
         data = MNIST(data_root, **data_args)
     else:
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
+
+    # setup CUDA args for DataLoaders
+    kwargs = {'num_workers': 4, 'pin_memory': True} if config['device'] == 'cuda' else {}
     
     # return train and validation DataLoaders
     if train:
@@ -73,13 +78,15 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
             train_data,
             batch_size=config['batch_size'], 
             shuffle=True, 
-            drop_last=True
+            drop_last=True,
+            **kwargs,
         )
         val_set = DataLoader(
             val_data,
             batch_size=config['batch_size'], 
             shuffle=False, 
-            drop_last=True
+            drop_last=True,
+            **kwargs,
         )
         return train_set, val_set
     # return test DataLoader
@@ -88,7 +95,8 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
             data,
             batch_size=config['batch_size'], 
             shuffle=False, 
-            drop_last=True
+            drop_last=True,
+            **kwargs,
         )
         return test_set
 
@@ -121,5 +129,7 @@ def get_label_map(dataset):
             'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow tree', 
             'wolf', 'woman', 'worm'
         ]
+    elif dataset == 'MNIST':
+        return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     else:
         raise Exception(f'Dataset {dataset} does not have a label map implemented...')
