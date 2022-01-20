@@ -7,8 +7,6 @@ matplotlib
 seaborn
 wandb
 Pillow
-torch
-torchvision
 tqdm
 einops
 lmdb
