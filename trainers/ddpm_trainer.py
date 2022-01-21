@@ -139,7 +139,7 @@ class DDPM_Trainer(object):
             for _ in range(self.gradient_accumulate_every):
                 data = next(self.dl)[0].to(self.device)
                 loss = self.model(data)
-                print(f'{self.step}: {loss.item()}')
+                # print(f'{self.step}: {loss.item()}')
                 backwards(loss / self.gradient_accumulate_every, self.opt)
                 train_loss.append(loss.item())
 
@@ -150,7 +150,6 @@ class DDPM_Trainer(object):
                 self.step_ema()
 
             if self.step != 0 and self.step % self.save_and_sample_every == 0:
-                
                 # compute milestone number
                 milestone = self.step // self.save_and_sample_every
                 
@@ -161,7 +160,7 @@ class DDPM_Trainer(object):
                 all_images = (all_images + 1) * 0.5
 
                 # log samples to wandb
-                img_path = str(self.results_folder / f'sample-{milestone}-{config["model"]}-{config["dataset"]}.png')
+                img_path = str(self.results_folder / f'sample-{milestone}-{self.config["model"]}-{self.config["dataset"]}.png')
                 utils.save_image(all_images, img_path, nrow = 6)
                 wandb.log({"Sample": wandb.Image(img_path)}, commit=False)
                 os.remove(img_path)
