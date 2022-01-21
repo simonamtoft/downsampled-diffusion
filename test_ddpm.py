@@ -6,6 +6,10 @@ import torch
 import os
 
 
+# mute weight and biases prints
+os.environ["WANDB_SILENT"] = "true"
+
+# setup path to data root
 DATA_ROOT = '../data/'
 
 # define config
@@ -34,9 +38,9 @@ else:
 unet_dims = (1, 2, 4) #, 8
 print(f"U-net with {unet_dims}")
 model = Unet(
-    dim = 64,
-    channels = color_channels,
-    dim_mults = unet_dims,
+    dim=64,
+    channels=color_channels,
+    dim_mults=unet_dims,
 ).to(config['device'])
 
 # Define Diffusion Model
@@ -46,9 +50,6 @@ diffusion = GaussianDiffusionSmall(model, **model_args).to(config['device'])
 
 # load in data
 train_loader, val_loader = get_dataloader(config, data_root=DATA_ROOT)
-
-# mute weight and biases prints
-os.environ["WANDB_SILENT"] = "true"
 
 # train
 trainer = DDPM_Trainer(
