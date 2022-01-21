@@ -1,6 +1,8 @@
-from models import Unet, GaussianDiffusion, Trainer
+from models import Unet, GaussianDiffusion
+from trainers import DDPM_Trainer
 from utils import get_dataloader
 import torch
+import os
 
 
 DATA_ROOT = '../data/'
@@ -46,8 +48,11 @@ diffusion = GaussianDiffusion(
 # load in data
 train_loader, val_loader = get_dataloader(config, data_root=DATA_ROOT)
 
+# mute weight and biases prints
+os.environ["WANDB_SILENT"] = "true"
+
 # train
-trainer = Trainer(
+trainer = DDPM_Trainer(
     diffusion,
     dataloader = train_loader,
     train_batch_size = config['batch_size'],
