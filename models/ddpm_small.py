@@ -35,16 +35,19 @@ class GaussianDiffusionSmall(nn.Module):
         self.image_size = image_size
         self.denoise_fn = denoise_fn
 
+        # compute latent channels
+        lc = image_size*2
+
         # SETUP DOWN + UP SAMPLING
         self.ds_1 = nn.Sequential(
-            nn.Conv2d(channels, image_size*2, 3, padding=1),
+            nn.Conv2d(self.channels, lc, kernel_size=3, padding=1),
             nn.ReLU()
         )
-        self.ds_2 = nn.Conv2d(64, 64, 2, padding=0, stride=2)
+        self.ds_2 = nn.Conv2d(lc, lc, kernel_size=2, padding=0, stride=2)
 
         self.upsample = nn.Sequential(
-            nn.ConvTranspose2d(64, 64, 4, stride=2),
-            nn.Conv2d(image_size*2, channels, 3, padding=0)
+            nn.ConvTranspose2d(lc, lc, kernel_size=4, stride=2),
+            nn.Conv2d(lc, self.channels, kernel_size=3, padding=0)
             # ,
             # nn.Conv2d(64, 64, 3, padding=1)
         )
@@ -131,7 +134,7 @@ class GaussianDiffusionSmall(nn.Module):
 
         b = shape[0]
         img = torch.randn(shape, device=device)
-
+        
         xtmp = self.ds_1(img)
         x_down = self.ds_2(xtmp)
         for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps):
@@ -175,16 +178,21 @@ class GaussianDiffusionSmall(nn.Module):
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
 
         # downsample x
+        # print(x_noisy.shape)
         xtmp = self.ds_1(x_noisy)
+        # print(xtmp.shape)
         x_down = self.ds_2(xtmp)
+        # print(x_down.shape)
 
         # pass through denoise model
         # x_recon = self.denoise_fn(x_noisy, t)
         x_out = self.denoise_fn(x_down, t)
+        # print(x_out.shape)
 
         # upsample x
         # F.relu(self.dec_conv0(skip_connection(e3, self.upsample0(b))))
         x_recon = self.upsample(x_out)
+        # print(x_recon.shape)
         # x_recon = skip_connection(xtmp, x_recon)
 
         if self.loss_type == 'l1':
