@@ -134,10 +134,9 @@ class DDPM_Trainer(object):
         wandb.watch(self.model)
 
         backwards = partial(loss_backwards, self.fp16)
-
         while self.step < self.train_num_steps:
             train_loss = []
-            for i in range(self.gradient_accumulate_every):
+            for _ in range(self.gradient_accumulate_every):
                 data = next(self.dl)[0].to(self.device)
                 loss = self.model(data)
                 print(f'{self.step}: {loss.item()}')

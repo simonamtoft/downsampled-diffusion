@@ -1,10 +1,15 @@
-from models import Unet, GaussianDiffusion
+from models import Unet, GaussianDiffusion, \
+    GaussianDiffusionSmall
 from trainers import DDPM_Trainer
 from utils import get_dataloader
 import torch
 import os
 
 
+# mute weight and biases prints
+os.environ["WANDB_SILENT"] = "true"
+
+# setup path to data root
 DATA_ROOT = '../data/'
 
 # define config
@@ -29,27 +34,22 @@ if config['dataset'] == 'mnist':
 else:
     color_channels = 3
 
-# Define DDPM model
+# Define Latent Architecture
 unet_dims = (1, 2, 4) #, 8
 print(f"U-net with {unet_dims}")
 model = Unet(
-    dim = 64,
-    channels = color_channels,
-    dim_mults = unet_dims,
+    dim=64,
+    channels=color_channels,
+    dim_mults=unet_dims,
 ).to(config['device'])
-diffusion = GaussianDiffusion(
-    model,
-    image_size = config['image_size'],
-    timesteps = config['timesteps'],
-    loss_type = config['loss_type'],
-    channels = color_channels,
-).to(config['device'])
+
+# Define Diffusion Model
+model_args = {'image_size': config['image_size'], 'timesteps': config['timesteps'], 'loss_type': config['loss_type'], 'channels': color_channels}
+# diffusion = GaussianDiffusion(model, **model_args).to(config['device'])
+diffusion = GaussianDiffusionSmall(model, **model_args).to(config['device'])
 
 # load in data
 train_loader, val_loader = get_dataloader(config, data_root=DATA_ROOT)
-
-# mute weight and biases prints
-os.environ["WANDB_SILENT"] = "true"
 
 # train
 trainer = DDPM_Trainer(
