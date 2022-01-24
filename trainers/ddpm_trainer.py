@@ -1,3 +1,4 @@
+import os
 import copy
 import wandb
 import torch
@@ -149,7 +150,8 @@ class DDPM_Trainer(object):
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
 
-            if self.step != 0 and self.step % self.save_and_sample_every == 0:
+            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
+            if is_milestone:
                 # compute milestone number
                 milestone = self.step // self.save_and_sample_every
                 
@@ -163,7 +165,6 @@ class DDPM_Trainer(object):
                 img_path = str(self.results_folder / f'sample-{milestone}-{self.config["model"]}-{self.config["dataset"]}.png')
                 utils.save_image(all_images, img_path, nrow = 6)
                 wandb.log({"Sample": wandb.Image(img_path)}, commit=False)
-                os.remove(img_path)
                 
                 # save model
                 # self.save(milestone)
@@ -174,5 +175,9 @@ class DDPM_Trainer(object):
             # log to wandb
             train_loss = np.array(train_loss).mean()
             wandb.log({'train_loss': train_loss}, commit=True)
+            
+            # remove logged image
+            if is_milestone:
+                os.remove(img_path)
 
         print('training completed')
