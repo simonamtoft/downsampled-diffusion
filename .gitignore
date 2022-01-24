@@ -133,3 +133,4 @@ tester.ipynb
 results/
 bsub_logs/*
 wandb/*
+submit.sh
