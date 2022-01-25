@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # custom ignores
-tester.ipynb
+notebooks/tester.ipynb
 results/
 bsub_logs/*
 wandb/*
