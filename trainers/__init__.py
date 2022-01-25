@@ -1,1 +1,1 @@
-from .ddpm_trainer import DDPM_Trainer
+from .ddpm_trainer import DDPM_Trainer, cycle
