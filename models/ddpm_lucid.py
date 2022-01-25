@@ -27,7 +27,6 @@ class GaussianDiffusion(nn.Module):
         self.channels = channels
         self.image_size = image_size
         self.denoise_fn = denoise_fn
-
         self.mute = mute
 
         # Initialize betas (variance)
