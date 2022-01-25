@@ -94,6 +94,7 @@ class GaussianDiffusionSmall(nn.Module):
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
 
     def q_mean_variance(self, x_start, t):
+        # x_start = self.downsample(x_start)
         mean = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
         variance = extract(1. - self.alphas_cumprod, t, x_start.shape)
         log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_start.shape)
@@ -139,33 +140,35 @@ class GaussianDiffusionSmall(nn.Module):
         b = shape[0]
         img = torch.randn(shape, device=device)
         
-        xtmp = self.ds_1(img)
-        x_down = self.ds_2(xtmp)
-        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps):
-            img = self.p_sample(x_down, torch.full((b,), i, device=device, dtype=torch.long))
+        img = self.downsample(img)
+        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='sampling loop time step', total=self.num_timesteps, disable=self.mute):
+            img = self.p_sample(img, torch.full((b,), i, device=device, dtype=torch.long))
         img = self.upsample(img)
         return img
 
     @torch.no_grad()
-    def sample(self, batch_size = 16):
+    def sample(self, batch_size=16):
         image_size = self.image_size
         channels = self.channels
         return self.p_sample_loop((batch_size, channels, image_size, image_size))
 
     @torch.no_grad()
-    def interpolate(self, x1, x2, t = None, lam = 0.5):
+    def interpolate(self, x1, x2, t=None, lam=0.5):
         b, *_, device = *x1.shape, x1.device
         t = default(t, self.num_timesteps - 1)
 
         assert x1.shape == x2.shape
 
+        # x1 = self.downsample(x1)
+        # x2 = self.downsample(x2)
+
         t_batched = torch.stack([torch.tensor(t, device=device)] * b)
         xt1, xt2 = map(lambda x: self.q_sample(x, t=t_batched), (x1, x2))
 
         img = (1 - lam) * xt1 + lam * xt2
-        for i in tqdm(reversed(range(0, t)), desc='interpolation sample time step', total=t):
+        for i in tqdm(reversed(range(0, t)), desc='interpolation sample time step', total=t, disable=self.mute):
             img = self.p_sample(img, torch.full((b,), i, device=device, dtype=torch.long))
-
+        # img = self.upsample(img)
         return img
 
     def q_sample(self, x_start, t, noise=None):
@@ -176,7 +179,7 @@ class GaussianDiffusionSmall(nn.Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
-    def p_losses(self, x_start, t, noise = None):
+    def p_losses(self, x_start, t, noise=None):
 
         # create noise
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -195,10 +198,21 @@ class GaussianDiffusionSmall(nn.Module):
         x_recon = self.upsample(x_out)
 
         # compute loss
+        # should we compute two different losses here?
+        # one for matching noise in downsampled space
+        # one for matching start x with recon x?
         if self.loss_type == 'l1':
-            loss = (noise - x_recon).abs().mean()
+            # loss = (noise - x_recon).abs().mean()
+            loss = (n_down - x_out).abs().mean()
+            print(x_recon.min(), x_recon.max())
+            print(x_start.min(), x_start.max())
+            recon = F.binary_cross_entropy(x_recon, x_start)
+            print(recon)
+            loss += recon
         elif self.loss_type == 'l2':
-            loss = F.mse_loss(noise, x_recon)
+            # loss = F.mse_loss(noise, x_recon)
+            loss = F.mse_loss(n_down, x_out)
+            loss += F.binary_cross_entropy(x_recon, x_start) 
         else:
             raise NotImplementedError()
 
