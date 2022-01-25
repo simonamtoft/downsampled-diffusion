@@ -22,6 +22,7 @@ class GaussianDiffusionSmall(nn.Module):
     def __init__(
         self,
         denoise_fn,
+        unet_channels,
         *,
         image_size,
         channels=3,
@@ -34,22 +35,25 @@ class GaussianDiffusionSmall(nn.Module):
         self.channels = channels
         self.image_size = image_size
         self.denoise_fn = denoise_fn
-
-        # compute latent channels
-        lc = image_size*2
+        self.mute = mute
 
         # SETUP DOWN + UP SAMPLING
-        self.ds_1 = nn.Sequential(
-            nn.Conv2d(self.channels, lc, kernel_size=3, padding=1),
-            nn.ReLU()
+        uchans = int(unet_channels/2)
+        self.downsample = nn.Sequential(
+            nn.Conv2d(channels, uchans, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(uchans, uchans, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(uchans, unet_channels, kernel_size=2, padding=0, stride=2)
         )
-        self.ds_2 = nn.Conv2d(lc, lc, kernel_size=2, padding=0, stride=2)
 
         self.upsample = nn.Sequential(
-            nn.ConvTranspose2d(lc, lc, kernel_size=4, stride=2),
-            nn.Conv2d(lc, self.channels, kernel_size=3, padding=0)
-            # ,
-            # nn.Conv2d(64, 64, 3, padding=1)
+            nn.ConvTranspose2d(unet_channels, uchans, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(uchans, uchans, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(uchans, uchans, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(uchans, channels, kernel_size=1, padding=0),
         )
 
         if exists(betas):
@@ -173,28 +177,24 @@ class GaussianDiffusionSmall(nn.Module):
         )
 
     def p_losses(self, x_start, t, noise = None):
-        b, c, h, w = x_start.shape
+
+        # create noise
         noise = default(noise, lambda: torch.randn_like(x_start))
-        x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
-
-        # downsample x
-        # print(x_noisy.shape)
-        xtmp = self.ds_1(x_noisy)
-        # print(xtmp.shape)
-        x_down = self.ds_2(xtmp)
-        # print(x_down.shape)
-
+        
+        # downsample x and noise
+        x_down = self.downsample(x_start)
+        n_down = self.downsample(noise)
+        
+        # apply noise in downsampled space
+        x_noisy = self.q_sample(x_down, t, n_down)
+        
         # pass through denoise model
-        # x_recon = self.denoise_fn(x_noisy, t)
-        x_out = self.denoise_fn(x_down, t)
-        # print(x_out.shape)
-
-        # upsample x
-        # F.relu(self.dec_conv0(skip_connection(e3, self.upsample0(b))))
+        x_out = self.denoise_fn(x_noisy, t)
+        
+        # upsample output of denoise model
         x_recon = self.upsample(x_out)
-        # print(x_recon.shape)
-        # x_recon = skip_connection(xtmp, x_recon)
 
+        # compute loss
         if self.loss_type == 'l1':
             loss = (noise - x_recon).abs().mean()
         elif self.loss_type == 'l2':

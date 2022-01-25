@@ -34,18 +34,18 @@ else:
     color_channels = 3
 
 # Instantiate Latent Model
-latent_channels = 2*config['image_size']
-unet_dims = (1, 2, 4) #, 8
+unet_dims = (1, 2) #, 4, 8
+unet_chans = 32 # input number of channels for unet
 print(f"U-net with {unet_dims}")
 model = Unet(
     dim=64,
-    channels=latent_channels,
+    channels=unet_chans,
     dim_mults=unet_dims,
 ).to(config['device'])
 
 # Instantiate Diffusion Model
 model_args = {'image_size': config['image_size'], 'timesteps': config['timesteps'], 'loss_type': config['loss_type'], 'channels': color_channels}
-diffusion = GaussianDiffusionSmall(model, **model_args).to(config['device'])
+diffusion = GaussianDiffusionSmall(model, unet_chans, **model_args).to(config['device'])
 
 # load in data
 train_loader, val_loader = get_dataloader(config, data_root=DATA_ROOT)
