@@ -1,7 +1,8 @@
 import torch
 import numpy as np
 from torchvision.transforms import Compose, Resize, \
-    CenterCrop, ToTensor, Normalize
+    CenterCrop, ToTensor, RandomHorizontalFlip, \
+    Normalize, Lambda
 from torchvision.datasets import CelebA, CIFAR10, \
     CIFAR100, MNIST
 from torch.utils.data import DataLoader
@@ -42,9 +43,11 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
 
     # Define transforms to perform on each individual image
     data_transform = [
-        ToTensor(),
         Resize(config['image_size']),
+        # RandomHorizontalFlip(),
         CenterCrop(config['image_size']),
+        ToTensor(),
+        # Lambda(lambda t: (t * 2) - 1)
         # Normalize()
     ]
     data_transform = Compose(data_transform)
