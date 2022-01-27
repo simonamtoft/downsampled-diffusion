@@ -140,7 +140,6 @@ class DDPM_Trainer(object):
             for _ in range(self.gradient_accumulate_every):
                 data = next(self.dl)[0].to(self.device)
                 loss = self.model(data)
-                # print(f'{self.step}: {loss.item()}')
                 backwards(loss / self.gradient_accumulate_every, self.opt)
                 train_loss.append(loss.item())
 
