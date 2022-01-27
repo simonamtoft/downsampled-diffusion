@@ -4,23 +4,10 @@ from utils import get_dataloader
 import torch
 import os
 
+from train_config import DATA_ROOT, config
+
 # mute weight and biases prints
 os.environ["WANDB_SILENT"] = "true"
-
-# setup path to data root
-DATA_ROOT = '../data/'
-
-# define config
-config = {
-    'model': 'ddpm_small',
-    'dataset': 'mnist',
-    'image_size': 28,
-    'batch_size': 32,
-    'loss_type': 'l1',  # l1 or l2
-    'timesteps': 10,    # how deep the ddpm is
-    'train_steps': 700000,
-    'lr': 2e-5,
-}
 
 # Set device
 cuda = torch.cuda.is_available()
@@ -34,17 +21,20 @@ else:
     color_channels = 3
 
 # Instantiate Latent Model
-unet_dims = (1, 2) #, 4, 8
-unet_chans = 32 # input number of channels for unet
-print(f"U-net with {unet_dims}")
+unet_chans = color_channels*2 # input number of channels for unet
+print(f"U-net with {config['unet_dims']}")
 model = Unet(
     dim=64,
     channels=unet_chans,
-    dim_mults=unet_dims,
+    dim_mults=config['unet_dims'],
 ).to(config['device'])
 
 # Instantiate Diffusion Model
-model_args = {'image_size': config['image_size'], 'timesteps': config['timesteps'], 'loss_type': config['loss_type'], 'channels': color_channels}
+model_args = {
+    'image_size': config['image_size'], 
+    'timesteps': config['timesteps'], 
+    'loss_type': config['loss_type'], 
+    'channels': color_channels}
 diffusion = GaussianDiffusionSmall(model, unet_chans, **model_args).to(config['device'])
 
 # load in data
