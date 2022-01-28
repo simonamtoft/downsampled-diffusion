@@ -8,20 +8,13 @@ from functools import partial
 from torchvision import utils
 from torch.optim import Adam
 
+from .train_helpers import cycle, num_to_groups
+
 try:
     from apex import amp
     APEX_AVAILABLE = True
 except:
     APEX_AVAILABLE = False
-
-
-def num_to_groups(num, divisor):
-    groups = num // divisor
-    remainder = num % divisor
-    arr = [divisor] * groups
-    if remainder > 0:
-        arr.append(remainder)
-    return arr
 
 
 def loss_backwards(fp16, loss, optimizer, **kwargs):
@@ -30,12 +23,6 @@ def loss_backwards(fp16, loss, optimizer, **kwargs):
             scaled_loss.backward(**kwargs)
     else:
         loss.backward(**kwargs)
-
-
-def cycle(dl):
-    while True:
-        for data in dl:
-            yield data
 
 
 class EMA():
@@ -162,7 +149,7 @@ class DDPM_Trainer(object):
 
                 # log samples to wandb
                 img_path = str(self.results_folder / f'sample-{milestone}-{self.config["model"]}-{self.config["dataset"]}.png')
-                utils.save_image(all_images, img_path, nrow = 6)
+                utils.save_image(all_images, img_path, nrow=6)
                 wandb.log({"Sample": wandb.Image(img_path)}, commit=False)
                 
                 # save model

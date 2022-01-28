@@ -16,11 +16,11 @@ class GaussianDiffusion(nn.Module):
         self,
         denoise_fn,
         *,
-        image_size,
+        image_size=-1,
         channels=3,
         timesteps=1000,
         loss_type='l1',
-        betas=None, 
+        betas=None,
         mute=True,
     ):
         super().__init__()

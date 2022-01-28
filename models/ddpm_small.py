@@ -54,6 +54,8 @@ class GaussianDiffusionSmall(nn.Module):
             nn.Conv2d(uchans, uchans, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.Conv2d(uchans, channels, kernel_size=1, padding=0),
+            # nn.Softmax(),
+            # nn.Sigmoid(),
         )
 
         if exists(betas):
@@ -179,7 +181,7 @@ class GaussianDiffusionSmall(nn.Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
-    def p_losses(self, x_start, t, noise=None):
+    def p_losses(self, x_start, t, step=0, noise=None):
 
         # create noise
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -203,23 +205,25 @@ class GaussianDiffusionSmall(nn.Module):
         # one for matching start x with recon x?
         if self.loss_type == 'l1':
             # loss = (noise - x_recon).abs().mean()
-            loss = (n_down - x_out).abs().mean()
-            print(x_recon.min(), x_recon.max())
-            print(x_start.min(), x_start.max())
-            recon = F.binary_cross_entropy(x_recon, x_start)
-            print(recon)
-            loss += recon
+            loss_1 = (n_down - x_out).abs().mean()
+            if step > 10000:
+                loss_2 = (noise - x_recon).abs().mean()
+                loss = loss_1 + loss_2 / 10
+            else:
+                loss = loss_1
+            # recon = F.binary_cross_entropy(x_recon, x_start)
+            # loss += recon/100
         elif self.loss_type == 'l2':
-            # loss = F.mse_loss(noise, x_recon)
-            loss = F.mse_loss(n_down, x_out)
-            loss += F.binary_cross_entropy(x_recon, x_start) 
+            loss = F.mse_loss(noise, x_recon)
+            # loss = F.mse_loss(n_down, x_out)
+            # loss += F.binary_cross_entropy(x_recon, x_start) 
         else:
             raise NotImplementedError()
 
         return loss
 
-    def forward(self, x, *args, **kwargs):
+    def forward(self, x, step=0, *args, **kwargs):
         b, c, h, w, device, img_size, = *x.shape, x.device, self.image_size
         assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
         t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
-        return self.p_losses(x, t, *args, **kwargs)
+        return self.p_losses(x, t, step, *args, **kwargs)

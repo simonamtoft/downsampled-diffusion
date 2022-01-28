@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 DATA_ROOT = './data/'
 
 
-def download_datasets(data_root=DATA_ROOT) -> None:
+def download_datasets(data_root:str=DATA_ROOT) -> None:
     """Downloads the following datasets: CIFAR10, CIFAR100 & MNIST"""
     # _ = CelebA(DATA_ROOT, download=True)
     print('Downloading CIFAR10')
@@ -22,7 +22,7 @@ def download_datasets(data_root=DATA_ROOT) -> None:
     print('Finished downloading CIFAR10, CIFAR100 & MNIST...')
 
 
-def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> DataLoader:
+def get_dataloader(config:dict, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15, data_transform:list=[]) -> DataLoader:
     """ Returns dataloaders for train and validation splits 
         of the dataset specified in config.
         
@@ -42,14 +42,15 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
     """
 
     # Define transforms to perform on each individual image
-    data_transform = [
-        Resize(config['image_size']),
-        # RandomHorizontalFlip(),
-        CenterCrop(config['image_size']),
-        ToTensor(),
-        # Lambda(lambda t: (t * 2) - 1)
-        # Normalize()
-    ]
+    if data_transform == []:
+        data_transform = [
+            Resize(config['image_size']),
+            # RandomHorizontalFlip(),
+            CenterCrop(config['image_size']),
+            ToTensor(),
+            # Lambda(lambda t: (t * 2) - 1)
+            # Normalize()
+        ]
     data_transform = Compose(data_transform)
     
     # Initialize data arguments
@@ -104,7 +105,7 @@ def get_dataloader(config, train=True, data_root=DATA_ROOT, val_split=0.15) -> D
         return test_set
 
 
-def get_label_map(dataset):
+def get_label_map(dataset:str) -> list:
     if dataset == 'cifar10':
         return [
             'airplane', 'automobile', 'bird', 
