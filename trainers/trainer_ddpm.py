@@ -6,7 +6,7 @@ import numpy as np
 from torchvision import utils
 
 from .trainer import Trainer
-from .train_helpers import cycle
+from .train_helpers import cycle, num_to_groups
 
 
 class EMA():
@@ -28,8 +28,7 @@ class EMA():
 
 class TrainerDDPM(Trainer):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True):
-        super().__init__(model, train_loader, config, device, wandb_name, mute)
-
+        super().__init__(config, model, train_loader, device=device, wandb_name=wandb_name, mute=mute)
         # set train loader as a cycle instead
         self.train_loader = cycle(self.train_loader)
 

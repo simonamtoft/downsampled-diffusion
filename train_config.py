@@ -20,7 +20,7 @@ CONFIG = {
     'timesteps': 1000,      # how deep the ddpm is
 
     # training parameters 
-    'train_steps': 700000,
+    'n_steps': 700000,
     'loss_type': 'l1',      # l1 or l2
     'lr': 2e-5,
 }

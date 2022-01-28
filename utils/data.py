@@ -22,7 +22,7 @@ def download_datasets(data_root:str=DATA_ROOT) -> None:
     print('Finished downloading CIFAR10, CIFAR100 & MNIST...')
 
 
-def get_dataloader(config:dict, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15, data_transform:list=[]) -> DataLoader:
+def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15, data_transform:list=[]) -> DataLoader:
     """ Returns dataloaders for train and validation splits 
         of the dataset specified in config.
         
@@ -67,7 +67,7 @@ def get_dataloader(config:dict, train:bool=True, data_root:str=DATA_ROOT, val_sp
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
 
     # setup CUDA args for DataLoaders
-    kwargs = {'num_workers': 4, 'pin_memory': True} if config['device'] == 'cuda' else {}
+    kwargs = {'num_workers': 4, 'pin_memory': True} if device == 'cuda' else {}
     
     # return train and validation DataLoaders
     if train:
@@ -105,6 +105,17 @@ def get_dataloader(config:dict, train:bool=True, data_root:str=DATA_ROOT, val_sp
         return test_set
 
 
+def get_color_channels(dataset:str) -> int:
+    if dataset == 'cifar10':
+        return 3
+    elif dataset == 'cifar100':
+        return 3
+    elif dataset == 'mnist':
+        return 1
+    else:
+        raise Exception(f'Dataset {dataset} does not have a color channel set...')
+
+
 def get_label_map(dataset:str) -> list:
     if dataset == 'cifar10':
         return [
@@ -133,7 +144,7 @@ def get_label_map(dataset:str) -> list:
             'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow tree', 
             'wolf', 'woman', 'worm'
         ]
-    elif dataset == 'MNIST':
+    elif dataset == 'mnist':
         return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     else:
         raise Exception(f'Dataset {dataset} does not have a label map implemented...')
