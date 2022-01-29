@@ -1,30 +1,22 @@
-# from tqdm import tqdm
 import numpy as np
 import torch
 from torch import nn
 from functools import partial
 
 from .losses import l1_loss, l2_loss
-from .helpers import default, exists, \
-    extract, noise_like, cosine_beta_schedule
+from .helpers import default, extract, \
+    noise_like, cosine_beta_schedule
 
 
-class GaussianDiffusion(nn.Module):
-    def __init__(
-        self,
-        config,
-        denoise_model,
-        device,
-        color_channels=3,
-    ):
+class DDPM(nn.Module):
+    def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
         super().__init__()
         
         self.denoise = denoise_model
-        self.channels = color_channels
+        self.in_channels = color_channels
         self.device = device
         
         # extract fields from config 
-        self.batch_size = config['batch_size']
         self.image_size = config['image_size']
         self.timesteps = config['timesteps']
 
@@ -103,6 +95,7 @@ class GaussianDiffusion(nn.Module):
 
     @torch.no_grad()
     def p_sample(self, x, t, clip_denoised=True, repeat_noise=False):
+
         # Get mean and log variance of the model
         model_mean, _, model_log_variance = self.p_mean_variance(x, t, clip_denoised)
         
@@ -110,30 +103,31 @@ class GaussianDiffusion(nn.Module):
         noise = noise_like(x.shape, self.device, repeat_noise)
         
         # no noise when t == 0
-        nonzero_mask = (1 - (t == 0).float()).reshape(self.batch_size, *((1,) * (len(x.shape) - 1)))
+        batch_size = x.shape[0]
+        nonzero_mask = (1 - (t == 0).float()).reshape(batch_size, *((1,) * (len(x.shape) - 1)))
         
         # compute sample from p
         x_t = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
         
         return x_t
-
+    
     @torch.no_grad()
     def p_sample_loop(self, shape):
         """Generate images by sampling"""
         
         # start with an image of completely random noise
+        b = shape[0]
         img = torch.randn(shape, device=self.device)
 
         # go through the ddpm in reverse order (from t=T to t=0)
         for i in reversed(range(0, self.timesteps)):
-            t =  torch.full((self.batch_size,), i, device=self.device, dtype=torch.long)
-            img = self.p_sample(img, t)
+            img = self.p_sample(img, torch.full((b,), i, device=self.device, dtype=torch.long))
         return img
 
     @torch.no_grad()
     def sample(self, batch_size=16):
         """Sample a batch"""
-        return self.p_sample_loop((batch_size, self.channels, self.image_size, self.image_size))
+        return self.p_sample_loop((batch_size, self.in_channels, self.image_size, self.image_size))
 
     # @torch.no_grad()
     # def interpolate(self, x1, x2, t=None, lam=0.5):
@@ -177,8 +171,86 @@ class GaussianDiffusion(nn.Module):
 
     def forward(self, x, *args, **kwargs):
         # select a random timestep t for each x in batch        
-        t = torch.randint(0, self.timesteps, (self.batch_size,), device=self.device).long()
+        t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
         
         # denoise x at timestep t, and compute loss
         loss = self.p_losses(x, t, *args, **kwargs)       
         return loss
+
+
+class DownsampleDDPM(DDPM):
+    def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
+        super().__init__(config, denoise_model, device, color_channels)
+
+        # number of channels inside the down-up sample network
+        self.channels = [int(config['unet_chan'] / 2), config['unet_chan']]
+        
+        # number of downsamples
+        n_downsamples = 1
+        self.dim_reduc = np.power(2, n_downsamples)
+        
+        # Instantiate downsample network
+        self.downsample = nn.Sequential(
+            nn.Conv2d(self.in_channels, self.channels[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(self.channels[0], self.channels[1], kernel_size=2, padding=0, stride=2)
+        )
+
+        # Instantiate upsample network
+        self.upsample = nn.Sequential(
+            nn.ConvTranspose2d(self.channels[1], self.channels[0], kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(self.channels[0], self.in_channels, kernel_size=1, padding=0),
+        )
+    
+    @torch.no_grad()
+    def p_sample_loop(self, shape:tuple):
+        # Create random noise in downsampled space
+        img = torch.randn(shape, device=self.device)
+        # img = self.downsample(img)
+        
+        # Pass backwards through the DDPM
+        for i in reversed(range(0, self.timesteps)):
+            img = self.p_sample(img, torch.full((shape[0],), i, device=self.device, dtype=torch.long))
+            
+        # return the upsampled result
+        img = self.upsample(img)
+        return img
+    
+    @torch.no_grad()
+    def sample(self, batch_size:int=16):
+        img_size = int(self.image_size/self.dim_reduc)
+        return self.p_sample_loop((batch_size, self.channels[1], img_size, img_size))
+    
+    def p_losses(self, x_start:torch.tensor, t:torch.tensor, noise:torch.tensor=None) -> tuple:
+        # Instantiate t=1 for each x in the batch
+        t_1 = torch.ones((x_start.shape[0],), device=self.device).long()
+        
+        # downsample the input
+        z_start = self.downsample(x_start)
+        
+        # Generate noise
+        noise_x = torch.randn_like(x_start)
+        noise_xz = self.downsample(noise_x)
+        noise_z = torch.randn_like(z_start)
+
+        # sample noisy z from q distribution for step t and t=1
+        z_t = self.q_sample(z_start, t, noise_z)
+        z_1 = self.q_sample(z_start, t_1, noise_xz)
+        
+        # denoise the noisy z at step t and t=1
+        z_recon = self.denoise(z_t, t)
+        z_1_recon = self.denoise(z_1, t_1)
+        
+        # upsample the reconstructed z at t=1
+        x_1_recon = self.upsample(z_1_recon)
+
+        # compute losses
+        loss_latent = self.get_loss(noise_z, z_recon)
+        loss_recon = self.get_loss(noise_x, x_1_recon)
+        return (loss_latent, loss_recon)
