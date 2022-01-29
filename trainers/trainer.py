@@ -46,14 +46,11 @@ class Trainer(object):
         if not os.path.isdir(self.res_folder):
             os.mkdir(self.res_folder)
 
-        # Run weight and biases if a project name for wandb is given.
-        if wandb_name != '':
-            self.is_wandb = True
-            self.config = config
-            if mute:
-                os.environ["WANDB_SILENT"] = "true"
-        else:
-            self.is_wandb = False
+        # Setup weight and biases configuration
+        self.wandb_name = wandb_name
+        self.config = config
+        if mute:
+            os.environ["WANDB_SILENT"] = "true"
 
     def train(self):
         raise NotImplementedError('Implement in subclass...')
