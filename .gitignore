@@ -134,3 +134,4 @@ results/
 bsub_logs/*
 wandb/*
 submit.sh
+test.py
