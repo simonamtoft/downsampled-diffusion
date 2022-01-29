@@ -20,7 +20,7 @@ unet_in = CONFIG['unet_chan'] if CONFIG['downsample'] else color_channels
 # instantiate latent model
 latent_model = Unet(
     dim=CONFIG['unet_chan'],
-    channels=unet_in,
+    in_channels=unet_in,
     dim_mults=CONFIG['unet_dims'],
 )
 
