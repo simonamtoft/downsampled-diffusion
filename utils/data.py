@@ -4,14 +4,26 @@ from torchvision.transforms import Compose, Resize, \
     CenterCrop, ToTensor, RandomHorizontalFlip, \
     Normalize, Lambda
 from torchvision.datasets import CelebA, CIFAR10, \
-    CIFAR100, MNIST
+    CIFAR100, MNIST, Omniglot
 from torch.utils.data import DataLoader
 
 DATA_ROOT = './data/'
+DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot']
+
+
+def binarize(x):
+    """Used as lambda function to binarize data x"""
+    return torch.bernoulli(x)
+
+
+def inv_binarize(x):
+    """Used as lambda function to binarize data x 
+        and reverse black and white"""
+    return 1 - torch.bernoulli(x)
 
 
 def download_datasets(data_root:str=DATA_ROOT) -> None:
-    """Downloads the following datasets: CIFAR10, CIFAR100 & MNIST"""
+    """Downloads the following datasets: CIFAR10, CIFAR100, Omniglot & MNIST"""
     # _ = CelebA(DATA_ROOT, download=True)
     print('Downloading CIFAR10')
     _ = CIFAR10(data_root, download=True)
@@ -19,10 +31,40 @@ def download_datasets(data_root:str=DATA_ROOT) -> None:
     _ = CIFAR100(data_root, download=True)
     print('Downloadning MNIST')
     _ = MNIST(data_root, download=True)
-    print('Finished downloading CIFAR10, CIFAR100 & MNIST...')
+    print('Downloadning Omniglot')
+    _ = Omniglot(data_root, download=True)
+    print('Finished downloading CIFAR10, CIFAR100, Omniglot & MNIST...')
 
 
-def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15, data_transform:list=[]) -> DataLoader:
+def get_transforms(config:dict):
+    """Define transforms to use, based on model and dataset."""
+    
+    # get dataset and model name from config
+    dataset = config['dataset']
+    model = config['model']
+    size = config['image_size']
+    
+    # setup standard transform
+    data_transform = [
+        Resize(size),
+        CenterCrop(size),
+        ToTensor(),
+    ]
+    
+    # add binarization for autoencoder models on mnist and omniglot.
+    if model in ['vae', 'draw']:
+        if dataset == 'mnist':
+            data_transform.append(Lambda(binarize))
+        elif dataset == 'omniglot':
+            data_transform.append(Lambda(inv_binarize))
+    # add flip for ddpm model on datasets such as cifar, celeba etc.
+    elif model == 'ddpm' and dataset not in ['mnist', 'omniglot']:
+        data_transform.append(RandomHorizontalFlip())
+    
+    return data_transform   
+
+
+def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15) -> DataLoader:
     """ Returns dataloaders for train and validation splits 
         of the dataset specified in config.
         
@@ -42,16 +84,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     """
 
     # Define transforms to perform on each individual image
-    if data_transform == []:
-        data_transform = [
-            Resize(config['image_size']),
-            # RandomHorizontalFlip(),
-            CenterCrop(config['image_size']),
-            ToTensor(),
-            # Lambda(lambda t: (t * 2) - 1)
-            # Normalize()
-        ]
-    data_transform = Compose(data_transform)
+    data_transform = Compose(get_transforms(config))
     
     # Initialize data arguments
     data_args = {'download': False, 'transform': data_transform, 'train': train}
@@ -63,6 +96,8 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         data = CIFAR100(data_root, **data_args)
     elif config['dataset'] == 'mnist':
         data = MNIST(data_root, **data_args)
+    elif config['dataset'] == 'omniglot':
+        data = Omniglot(data_root, **data_args)
     else:
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
 
@@ -93,6 +128,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
             **kwargs,
         )
         return train_set, val_set
+    
     # return test DataLoader
     else:
         test_set = DataLoader(
@@ -106,11 +142,9 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
 
 
 def get_color_channels(dataset:str) -> int:
-    if dataset == 'cifar10':
+    if dataset in ['cifar10', 'cifar100']:
         return 3
-    elif dataset == 'cifar100':
-        return 3
-    elif dataset == 'mnist':
+    elif dataset in ['mnist', 'omniglot']:
         return 1
     else:
         raise Exception(f'Dataset {dataset} does not have a color channel set...')
