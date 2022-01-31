@@ -3,11 +3,30 @@ import wandb
 import torch
 import numpy as np
 import torch.nn as nn
+from functools import partial
 import torch.nn.functional as F
 
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
     log_images, lambda_lr
+
+
+def cross_entropy(b, c, x_hat, x):
+    """Computes cross-entropy for DRAW model on color image data."""
+    # fix dimensionality of data
+    x_hat = x_hat.view(b, c, -1)
+    x = x.view(b, c, -1)
+    
+    # compute mean cross-entropy loss of batch
+    target = torch.max(x, 1)[1]
+    loss = F.cross_entropy(x_hat, target, reduction='none')
+    return loss.sum(1).mean()
+
+
+def binary_cross_entropy(x_hat, x):
+    """Computes binary cross-entropy for DRAW model."""
+    loss = F.binary_cross_entropy(x_hat, x, reduction='none')
+    return loss.sum(1).mean()
 
 
 class TrainerDRAW(Trainer):
@@ -25,10 +44,10 @@ class TrainerDRAW(Trainer):
         
         # Define loss function
         if self.n_channels == 1:
-            self.loss_fn = nn.BCELoss(reduction='none').to(self.device)
+            # self.recon_fn = nn.BCELoss(reduction='none').to(self.device)
+            self.recon_fn = binary_cross_entropy
         else:
-            # self.loss_fn = nn.MSELoss(reduction='none').to(self.device)
-            self.loss_fn = nn.CrossEntropyLoss(reduction='none').to(self.device)
+            self.recon_fn = partial(cross_entropy, self.batch_size, self.n_channels)
 
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
@@ -67,16 +86,17 @@ class TrainerDRAW(Trainer):
             loss_elbo = []
             alpha = next(self.gamma)
             for x, _ in iter(self.train_loader):
-                batch_size = x.size(0)
+                # batch_size = x.size(0)
 
                 # Pass through model
-                x = x.view(batch_size, -1).to(self.device)
+                x = x.view(self.batch_size, -1).to(self.device)
                 x_hat, kld = self.model(x)
-                # x_hat = torch.sigmoid(x_hat)
+                if self.n_channels == 1:
+                    x_hat = torch.sigmoid(x_hat)
 
                 # Compute losses
-                recon = torch.mean(self.loss_fn(x_hat, x.long()).sum(1))
-                kl = torch.mean(kld.sum(1))
+                recon = self.recon_fn(x_hat, x)
+                kl = kld.sum(1).mean()
                 loss = recon + alpha * kl
                 elbo = -(recon + kl)
 
@@ -117,16 +137,17 @@ class TrainerDRAW(Trainer):
                     loss_kl = []
                     loss_elbo = []
                     for x, _ in iter(self.val_loader):
-                        batch_size = x.size(0)
+                        # batch_size = x.size(0)
 
                         # Pass through model
-                        x = x.view(batch_size, -1).to(self.device)
+                        x = x.view(self.batch_size, -1).to(self.device)
                         x_hat, kld = self.model(x)
-                        x_hat = torch.sigmoid(x_hat)
+                        if self.n_channels == 1:
+                            x_hat = torch.sigmoid(x_hat)
 
                         # Compute losses
-                        recon = torch.mean(self.loss_fn(x_hat, x).sum(1))
-                        kl = torch.mean(kld.sum(1))
+                        recon = self.recon_fn(x_hat, x)
+                        kl = kld.sum(1).mean()
                         loss = recon + alpha * kl
                         elbo = -(recon + kl)
 
