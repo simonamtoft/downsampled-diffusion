@@ -1,24 +1,24 @@
 import argparse
 
 
-def get_args(data_names: list, config: dict) -> tuple:
+def get_args(data_names: list, model_names: list, config: dict) -> tuple:
     parser = argparse.ArgumentParser(description="Model training script.")
 
     # Pick Model
     parser.add_argument(
         '-m', 
-        help='Pick which model to train (default: ddpm).',
-        default='ddpm',
+        help=f'Pick which model to train (default: {model_names[0]}).',
+        default=model_names[0],
         type=str,
-        choices=['ddpm'],
+        choices=model_names,
         dest='model'
     )
 
     # Pick Dataset
     parser.add_argument(
         '-d', 
-        help='Pick which dataset to fit to (default: mnist).', 
-        default='mnist',
+        help=f'Pick which dataset to fit to (default: {data_names[0]}).', 
+        default=data_names[0],
         type=str,
         choices=data_names,
         dest='dataset'
@@ -49,12 +49,13 @@ def get_args(data_names: list, config: dict) -> tuple:
         dest='n_runs'
     )
 
-    # Pick whether to downsample or not
-    parser.add_argument(
-        '-downsample',
-        help='Train DDPM with downsampling.',
-        action='store_true'
-    )
+    # Pick whether to downsample or not (only for ddpm)
+    if 'ddpm' in model_names:
+        parser.add_argument(
+            '-downsample',
+            help='Train DDPM with downsampling.',
+            action='store_true'
+        )
 
     # Parse the arguments
     args = parser.parse_args()
