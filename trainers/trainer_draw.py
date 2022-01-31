@@ -29,6 +29,10 @@ def binary_cross_entropy(x_hat, x):
     return loss.sum(1).mean()
 
 
+def min_max_norm(x):
+    return (x - x.min()) / (x.max() - x.min())
+
+
 class TrainerDRAW(Trainer):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
@@ -64,6 +68,13 @@ class TrainerDRAW(Trainer):
         
         print('recon:', x_recon.min(), x_recon.max())
         print('sample:', x_sample.min(), x_sample.max())
+        
+        # perform min-max normalization
+        x_recon = min_max_norm(x_recon)
+        x_sample = min_max_norm(x_sample)
+        
+        print('recon:', x_recon.min(), x_recon.max())
+        print('sample:', x_sample.min(), x_sample.max())
 
         # log recon and sample
         name = f'{epoch}_{self.name}_{self.config["dataset"]}'
@@ -91,8 +102,8 @@ class TrainerDRAW(Trainer):
                 # Pass through model
                 x = x.view(self.batch_size, -1).to(self.device)
                 x_hat, kld = self.model(x)
-                if self.n_channels == 1:
-                    x_hat = torch.sigmoid(x_hat)
+                # if self.n_channels == 1:
+                x_hat = torch.sigmoid(x_hat)
 
                 # Compute losses
                 recon = self.recon_fn(x_hat, x)
@@ -142,8 +153,8 @@ class TrainerDRAW(Trainer):
                         # Pass through model
                         x = x.view(self.batch_size, -1).to(self.device)
                         x_hat, kld = self.model(x)
-                        if self.n_channels == 1:
-                            x_hat = torch.sigmoid(x_hat)
+                        # if self.n_channels == 1:
+                        x_hat = torch.sigmoid(x_hat)
 
                         # Compute losses
                         recon = self.recon_fn(x_hat, x)
