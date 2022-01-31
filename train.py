@@ -48,33 +48,6 @@ CONFIG_MODEL = {
     }
 }
 
-# # DDPM architecture config
-# CONFIG_DDPM = {
-#     'unet_chan': 64,
-#     'unet_dims': (1, 2, 4, 8),
-#     'timesteps': 1000,
-#     'loss_type': 'l2',
-#     'lr': 2e-5,
-#     'batch_size': 32,
-# }
-
-# # DRAW architecture config
-# CONFIG_DRAW = {
-#     'h_dim': 256,
-#     'z_dim': 32,    
-#     'T': 10,
-#     'batch_size': 128,
-#     'lr': 1e-3,
-# }
-
-# # VAE architecture config
-# CONFIG_VAE = {
-#     'h_dim': [512, 256, 128, 64],
-#     'z_dim': 64,
-#     'batch_size': 128,
-#     'lr': 1e-3,
-# }
-
 
 def modify_config(config, model_config):
     for key, value in model_config.items():
