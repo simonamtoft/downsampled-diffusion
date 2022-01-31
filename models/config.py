@@ -1,0 +1,1 @@
+MODEL_NAMES = ['ddpm', 'vae', 'draw']
