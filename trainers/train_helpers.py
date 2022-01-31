@@ -7,6 +7,13 @@ import matplotlib.pyplot as plt
 from torchvision import utils
 
 
+def compute_bits_dim(nats, x_dim:int):
+    """Compute the bits/dim from nats"""
+    nats_dim = nats / x_dim
+    bits_dim = nats_dim / np.log(2)
+    return bits_dim
+
+
 def cycle(dl):
     while True:
         for data in dl:

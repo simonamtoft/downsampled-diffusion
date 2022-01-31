@@ -3,6 +3,7 @@ import wandb
 import torch
 import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
@@ -12,11 +13,6 @@ from .train_helpers import DeterministicWarmup, \
 class TrainerDRAW(Trainer):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
-        
-        if config['dataset'] not in ['mnist', 'omniglot']:
-            self.n_channels = 3
-        else:
-            self.n_channels = 1
         
         # Setup learning rate scheduler
         lr_decay = {'n_epochs': 1000, 'delay': 150}
@@ -28,11 +24,15 @@ class TrainerDRAW(Trainer):
         self.gamma = DeterministicWarmup(n=100)
         
         # Define loss function
-        self.loss_fn = nn.BCELoss(reduction='none').to(self.device)
-        
+        if self.n_channels == 1:
+            self.loss_fn = nn.BCELoss(reduction='none').to(self.device)
+        else:
+            # self.loss_fn = nn.MSELoss(reduction='none').to(self.device)
+            self.loss_fn = nn.CrossEntropyLoss(reduction='none').to(self.device)
+
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
-    
+
     def log_images(self, x_hat, epoch):
         # reshape reconstruction
         x_recon = x_hat[:self.n_samples]
@@ -42,6 +42,9 @@ class TrainerDRAW(Trainer):
         x_sample = self.model.sample()
         x_sample = x_sample[:self.n_samples]
         x_sample = torch.reshape(x_sample, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+        
+        print('recon:', x_recon.min(), x_recon.max())
+        print('sample:', x_sample.min(), x_sample.max())
 
         # log recon and sample
         name = f'{epoch}_{self.name}_{self.config["dataset"]}'
@@ -69,10 +72,10 @@ class TrainerDRAW(Trainer):
                 # Pass through model
                 x = x.view(batch_size, -1).to(self.device)
                 x_hat, kld = self.model(x)
-                x_hat = torch.sigmoid(x_hat)
+                # x_hat = torch.sigmoid(x_hat)
 
                 # Compute losses
-                recon = torch.mean(self.loss_fn(x_hat, x).sum(1))
+                recon = torch.mean(self.loss_fn(x_hat, x.long()).sum(1))
                 kl = torch.mean(kld.sum(1))
                 loss = recon + alpha * kl
                 elbo = -(recon + kl)
@@ -90,9 +93,9 @@ class TrainerDRAW(Trainer):
                 loss_elbo.append(elbo.item())
             
             # get mean losses
-            loss_recon = np.array(loss_recon).mean()
-            loss_kl = np.array(loss_kl).mean()
-            loss_elbo = np.array(loss_elbo).mean()
+            loss_recon = self.loss_handle(loss_recon, self.x_dim)
+            loss_kl = self.loss_handle(loss_kl, self.x_dim)
+            loss_elbo = self.loss_handle(loss_elbo, self.x_dim)
 
             # Log train stuff
             train_losses.append(loss_elbo)
@@ -133,9 +136,9 @@ class TrainerDRAW(Trainer):
                         loss_elbo.append(elbo.item())
                     
                     # get mean losses
-                    loss_recon = np.array(loss_recon).mean()
-                    loss_kl = np.array(loss_kl).mean()
-                    loss_elbo = np.array(loss_elbo).mean()
+                    loss_recon = self.loss_handle(loss_recon, self.x_dim)
+                    loss_kl = self.loss_handle(loss_kl, self.x_dim)
+                    loss_elbo = self.loss_handle(loss_elbo, self.x_dim)
 
                     # Log validation losses
                     val_losses.append(loss_elbo)
@@ -147,12 +150,6 @@ class TrainerDRAW(Trainer):
 
                     # log images to wandb
                     self.log_images(x_hat, epoch)
-                    
-                    # Sample from model
-                    # x_sample = self.model.sample()
-                    
-                    # Log images to wandb
-                    # log_images(x_hat, x_sample, f'{epoch}_{self.name}_{self.config["dataset"]}', self.res_folder, self.n_channels)
         
         # Finalize training
         save_path = f'{self.res_folder}/{self.name}_model.pt'

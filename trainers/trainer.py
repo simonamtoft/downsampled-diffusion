@@ -5,6 +5,18 @@ import torch
 import numpy as np
 from torch.optim import Adam
 
+from .train_helpers import compute_bits_dim
+
+
+def mean_and_bits_dim(loss:list, x_dim:int):
+    """Takes mean of input loss and returns the bits dim instead of nats."""
+    return compute_bits_dim(np.array(loss).mean(), x_dim)
+
+
+def nats_mean(loss:list, x_dim:int):
+    """Takes mean of input loss, thus returning nats"""
+    return np.array(loss).mean()
+
 
 class Trainer(object):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results', n_channels:int=1, n_samples:int=36):
@@ -30,7 +42,19 @@ class Trainer(object):
         self.name = config['model']
         
         # color channels of input data
-        self.n_channels = n_channels
+        if config['dataset'] not in ['mnist', 'omniglot']:
+            self.n_channels = 3
+        else:
+            self.n_channels = 1
+        
+        # dimensionality of data
+        self.x_dim = self.n_channels * self.image_size * self.image_size
+        
+        # log loss as nats or bits/dim
+        if self.n_channels == 1:
+            self.loss_handle = nats_mean
+        else:
+            self.loss_handle = mean_and_bits_dim
         
         # define number of samples to take
         self.n_samples = n_samples
