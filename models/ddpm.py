@@ -235,13 +235,11 @@ class DownsampleDDPM(DDPM):
         z_start = self.downsample(x_start)
         
         # Generate noise
-        noise_x = torch.randn_like(x_start)
-        noise_xz = self.downsample(noise_x)
         noise_z = torch.randn_like(z_start)
 
         # sample noisy z from q distribution for step t and t=1
         z_t = self.q_sample(z_start, t, noise_z)
-        z_1 = self.q_sample(z_start, t_1, noise_xz)
+        z_1 = self.q_sample(z_start, t_1, noise_z)
         
         # denoise the noisy z at step t and t=1
         z_recon = self.denoise(z_t, t)
@@ -252,5 +250,5 @@ class DownsampleDDPM(DDPM):
 
         # compute losses
         loss_latent = self.get_loss(noise_z, z_recon)
-        loss_recon = self.get_loss(noise_x, x_1_recon)
+        loss_recon = self.get_loss(x_start, x_1_recon)
         return (loss_latent, loss_recon)
