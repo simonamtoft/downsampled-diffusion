@@ -1,3 +1,4 @@
+import os
 import wandb
 import torch
 import numpy as np
@@ -6,16 +7,19 @@ from torch.autograd import Variable
 
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
-    lambda_lr, bce_loss, log_images, num_to_groups
+    lambda_lr, bce_loss, log_images
 
 
 class TrainerVAE(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         
         # extract latent dim from config
         self.z_dim = self.config['z_dim']
-        
+
+        # set latent sample dim
+        self.sample_dim = self.z_dim[0] if isinstance(self.z_dim, list) else self.z_dim
+
         # Define learning rate decay
         lr_decay = {'n_epochs': 1000, 'delay': 150}
         
@@ -27,7 +31,25 @@ class TrainerVAE(Trainer):
         
         # linear deterministic warmup over n epochs (from 0 to 1)
         self.gamma = DeterministicWarmup(n=100)
+        
+        # number of samples has to be lower than batch size
+        if self.n_samples > self.batch_size:
+            raise ValueError(f'Number of samples ({self.n_samples_}) has to be lower than batch size ({self.batch_size}) for TrainerVAE.')
     
+    def log_images(self, x_hat, epoch):
+        # reshape reconstruction
+        x_recon = x_hat[:self.n_samples]
+        x_recon = torch.reshape(x_recon, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+        
+        # sample from model
+        x_mu = Variable(torch.randn(self.n_samples, self.sample_dim)).to(self.device)
+        x_sample = self.model.sample(x_mu)
+        x_sample = torch.reshape(x_sample, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+
+        # log recon and sample
+        name = f'{epoch}_{self.name}_{self.config["dataset"]}'
+        log_images(x_recon, x_sample, self.res_folder, name, self.n_rows)
+
     def train(self):
         # Instantiate wandb run
         wandb.init(project=self.wandb_name, config=self.config)
@@ -120,21 +142,15 @@ class TrainerVAE(Trainer):
                 'kl_val': kld_val,
                 'loss_val': elbo_val
             }, commit=False)
-
-            # Sample from model
-            if isinstance(self.z_dim, list):
-                x_mu = Variable(torch.randn(16, self.z_dim[0])).to(self.device)
-            else:
-                x_mu = Variable(torch.randn(16, self.z_dim)).to(self.device)
-            x_sample = self.model.sample(x_mu)
             
-            # Log images to wandb
-            log_images(x_hat, x_sample, f'{epoch}_{self.name}_{self.config["dataset"]}', self.res_folder)
-        
+            # log images to wandb
+            self.log_images(x_hat, epoch)
+
         # Finalize training
-        torch.save(self.model, f'{self.res_folder}/{self.name}_model.pt')
-        wandb.save(f'{self.res_folder}/{self.name}_model.pt')
+        save_path = f'{self.res_folder}/{self.name}_model.pt'
+        self.save_to_wandb(save_path)
         wandb.finish()
+        os.remove(save_path)
         print(f"Training of {self.name} completed!")
-        return train_losses
+        return train_losses, val_losses
     

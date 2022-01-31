@@ -2,11 +2,12 @@ import os
 import json
 import wandb
 import torch
+import numpy as np
 from torch.optim import Adam
 
 
 class Trainer(object):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results'):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results', n_channels:int=1, n_samples:int=36):
         """Boilerplate Trainer class, instantiating standard variables.
             config:         A dict that contains the necessary fields for training the specific model,
                             such as the learning rate and number of training steps/epochs to perform. 
@@ -27,6 +28,13 @@ class Trainer(object):
         self.batch_size = config['batch_size']
         self.image_size = config['image_size']
         self.name = config['model']
+        
+        # color channels of input data
+        self.n_channels = n_channels
+        
+        # define number of samples to take
+        self.n_samples = n_samples
+        self.n_rows = int(np.sqrt(self.n_samples))
 
         # Setup device to run on
         self.device = device
@@ -63,11 +71,10 @@ class Trainer(object):
         with open(filename, 'w') as f:
             json.dump(losses, f)
     
-    def save_to_wandb(self):
-        save_path = f'{self.res_folder}/{self.name}_model.pt'
-        torch.save(self.model,save_path )
+    def save_to_wandb(self, save_path):
+        torch.save(self.model,save_path)
         wandb.save(save_path)
-        os.remove(save_path)
+        # os.remove(save_path)
     
     def train(self):
         raise NotImplementedError('Implement in subclass...')

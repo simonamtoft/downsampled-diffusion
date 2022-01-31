@@ -1,20 +1,17 @@
-import json
+import os
 import wandb
 import torch
-import torch.nn as nn
 import numpy as np
-from tqdm import tqdm
-from torch.optim import Adam
-from torch.nn.utils import clip_grad_norm_
-from torch.distributions.normal import Normal
+import torch.nn as nn
 
 from .trainer import Trainer
-from .train_helpers import DeterministicWarmup, log_images, \
-    lambda_lr
+from .train_helpers import DeterministicWarmup, \
+    log_images, lambda_lr
+
 
 class TrainerDRAW(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         
         if config['dataset'] not in ['mnist', 'omniglot']:
             self.n_channels = 3
@@ -35,6 +32,20 @@ class TrainerDRAW(Trainer):
         
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
+    
+    def log_images(self, x_hat, epoch):
+        # reshape reconstruction
+        x_recon = x_hat[:self.n_samples]
+        x_recon = torch.reshape(x_recon, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+        
+        # sample from model
+        x_sample = self.model.sample()
+        x_sample = x_sample[:self.n_samples]
+        x_sample = torch.reshape(x_sample, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+
+        # log recon and sample
+        name = f'{epoch}_{self.name}_{self.config["dataset"]}'
+        log_images(x_recon, x_sample, self.res_folder, name, self.n_rows)
         
     def train(self):
         # Initialize a new wandb run
@@ -134,17 +145,19 @@ class TrainerDRAW(Trainer):
                         'loss_val': loss_elbo
                     }, commit=False)
 
-                    # Sample from model
-                    x_sample = self.model.sample()
+                    # log images to wandb
+                    self.log_images(x_hat, epoch)
                     
-                    print(x_sample.shape)
-
+                    # Sample from model
+                    # x_sample = self.model.sample()
+                    
                     # Log images to wandb
-                    log_images(x_hat, x_sample, f'{epoch}_{self.name}_{self.config["dataset"]}', self.res_folder, self.n_channels)
+                    # log_images(x_hat, x_sample, f'{epoch}_{self.name}_{self.config["dataset"]}', self.res_folder, self.n_channels)
         
         # Finalize training
-        self.save_to_wandb()
-        # torch.save(self.model, f'{self.res_folder}/{self.name}_model.pt')
-        # wandb.save(f'{self.res_folder}/{self.name}_model.pt')
+        save_path = f'{self.res_folder}/{self.name}_model.pt'
+        self.save_to_wandb(save_path)
         wandb.finish()
+        os.remove(save_path)
+        print(f"Training of {self.name} completed!")
         return train_losses, val_losses
