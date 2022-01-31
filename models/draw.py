@@ -1,9 +1,10 @@
 import numpy as np
+from operator import mul
+from functools import reduce
 import torch
 import torch.nn as nn
 from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
-
 
 class BaseAttention(nn.Module):
     """Base attention module. Has a linear layer for writing."""
@@ -21,12 +22,14 @@ class BaseAttention(nn.Module):
 
 
 class DRAW(nn.Module):
-    def __init__(self, config, x_shape):
+    def __init__(self, config:dict, x_dim:int):
         super(DRAW, self).__init__()
+        
+        # extract model architecture from input
         self.h_dim = config['h_dim']
-        self.x_dim = x_shape[0] * x_shape[1]
         self.z_dim = config['z_dim']
         self.T = config['T']
+        self.x_dim = x_dim
 
         # instantiate distribution layers
         self.variational = nn.Linear(self.h_dim, 2*self.z_dim)

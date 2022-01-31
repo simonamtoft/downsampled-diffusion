@@ -1,4 +1,7 @@
 import os
+import json
+import wandb
+import torch
 from torch.optim import Adam
 
 
@@ -23,6 +26,7 @@ class Trainer(object):
         self.n_steps = config['n_steps']
         self.batch_size = config['batch_size']
         self.image_size = config['image_size']
+        self.name = config['model']
 
         # Setup device to run on
         self.device = device
@@ -52,5 +56,18 @@ class Trainer(object):
         if mute:
             os.environ["WANDB_SILENT"] = "true"
 
+    def save_losses(self, losses):
+        """Save loss results to file"""
+        filename = f'{self.res_folder}/loss_{self.name}_{self.config["dataset"]}.json'
+        print(f'Saving losses to file {filename}')
+        with open(filename, 'w') as f:
+            json.dump(losses, f)
+    
+    def save_to_wandb(self):
+        save_path = f'{self.res_folder}/{self.name}_model.pt'
+        torch.save(self.model,save_path )
+        wandb.save(save_path)
+        os.remove(save_path)
+    
     def train(self):
         raise NotImplementedError('Implement in subclass...')

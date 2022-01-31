@@ -46,6 +46,9 @@ class TrainerDDPM(Trainer):
         self.ema_model = copy.deepcopy(self.model)
         self.reset_ema()
         
+        # update name to include the depth of the model
+        self.name += f'_{config["timesteps"]}'
+        
     def reset_ema(self):
         self.ema_model.load_state_dict(self.model.state_dict())
 
@@ -56,25 +59,15 @@ class TrainerDDPM(Trainer):
         self.ema.update_model_average(self.ema_model, self.model)
     
     def sample(self, n_images=36):
-        is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
-        img_path = ''
-        if is_milestone:
-            # compute milestone number
-            milestone = self.step // self.save_and_sample_every
-
-            # generate 36 samples
-            batches = num_to_groups(n_images, self.batch_size)
-            all_images_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
-            all_images = torch.cat(all_images_list, dim=0)
-            all_images = (all_images + 1) * 0.5
-
-            # log images to wandb
-            img_path = f'{self.res_folder}/sample-{milestone}-{self.config["model"]}-{self.config["dataset"]}.png'
-            utils.save_image(all_images, img_path, nrow=int(np.sqrt(n_images)))
-            wandb.log({'sample': wandb.Image(img_path)}, commit=False)
-        return img_path, is_milestone
+        """Generate n_images samples from the model."""
+        batches = num_to_groups(n_images, self.batch_size)
+        all_images_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
+        all_images = torch.cat(all_images_list, dim=0)
+        samples = (all_images + 1) * 0.5
+        return samples, int(np.sqrt(n_images))
     
     def train_loop(self):
+        losses = []
         while self.step < self.n_steps:
             train_loss = []
             for _ in range(self.gradient_accumulate_every):
@@ -101,11 +94,21 @@ class TrainerDDPM(Trainer):
                 self.step_ema()
             
             # sample and log sample to wandb
-            img_path, is_milestone = self.sample()
+            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
+            if is_milestone:
+                samples, nrows = self.sample()
+                
+                # save image
+                step = self.step // self.save_and_sample_every
+                img_path = f'{self.res_folder}/sample_{step}_{self.name}_{self.config["dataset"]}.png'
+                utils.save_image(samples, img_path, nrow=nrows)
+                wandb.log({'sample': wandb.Image(img_path)}, commit=False)
             
             # log loss to wandb
+            loss_ = np.mean(train_loss)
+            losses.append(loss_)
             wandb.log({
-                'train_loss': np.mean(train_loss),
+                'train_loss': loss_,
             }, commit=True)
 
             # remove local image save
@@ -114,6 +117,7 @@ class TrainerDDPM(Trainer):
 
             # update step
             self.step += 1
+        return losses
     
     def train(self):
         # Instantiate wandb run
@@ -121,11 +125,14 @@ class TrainerDDPM(Trainer):
         wandb.watch(self.model)
 
         # run training
-        self.train_loop()
+        losses = self.train_loop()
         
-        # finish training
+        # Finalize training
+        torch.save(self.model, f'{self.res_folder}/{self.name}_model.pt')
+        wandb.save(f'{self.res_folder}/{self.name}_model.pt')
         wandb.finish()
-        print("Training of DDPM completed!")
+        print(f"Training of {self.name} completed!")
+        return losses
 
 
 class TrainerDownsampleDDPM(TrainerDDPM):
@@ -133,6 +140,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute)
         
     def train_loop(self):
+        losses = []
         while self.step < self.n_steps:
             train_loss = []
             train_latent = []
@@ -167,8 +175,10 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             img_path, is_milestone = self.sample()
             
             # log loss to wandb
+            loss_ = np.mean(train_loss)
+            losses.append(loss_)
             wandb.log({
-                'train_loss': np.mean(train_loss),
+                'train_loss': loss_,
                 'train_latent': np.mean(train_latent),
                 'train_recon': np.mean(train_recon),
             }, commit=True)
@@ -179,3 +189,4 @@ class TrainerDownsampleDDPM(TrainerDDPM):
 
             # update step
             self.step += 1
+        return losses

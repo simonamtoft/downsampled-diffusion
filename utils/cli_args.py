@@ -1,7 +1,7 @@
 import argparse
 
 
-def get_args(data_names: list, model_names: list, config: dict) -> tuple:
+def get_args(config: dict, data_names: list, model_names: list) -> tuple:
     parser = argparse.ArgumentParser(description="Model training script.")
 
     # Pick Model
@@ -62,10 +62,14 @@ def get_args(data_names: list, model_names: list, config: dict) -> tuple:
 
     # add args to config
     for key, value in vars(args).items():
-        if key not in ['mute', 'n_runs']:
+        if key not in ['mute', 'n_runs']:           
             config[key] = value
 
+    # remove downsample if model is not ddpm
+    if config['model'] != 'ddpm':
+        del config['downsample']
+    
     # leftover args
-    args = {'n_runs': args.n_runs, 'mute': args.mute}
+    args_ = {'n_runs': args.n_runs, 'mute': args.mute}
 
-    return config, args
+    return config, args_

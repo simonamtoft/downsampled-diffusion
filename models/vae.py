@@ -108,14 +108,8 @@ class Decoder(nn.Module):
 
 
 class VariationalAutoencoder(nn.Module):
-    """
-        Variational Autoencoder model consisting of the encoder + decoder.
-    Inputs:
-        dims (array) :  Dimensions of the networks on the form
-                        [input_dim, [hidden_dims], latent_dim]
-         
-    """
-    def __init__(self, config, x_dim, x_list=True):
+    """Variational Autoencoder model consisting of the encoder and decoder modules."""
+    def __init__(self, config:dict, x_dim:int):
         super(VariationalAutoencoder, self).__init__()
         # setup network dimensions
         h_dim = config['h_dim']
@@ -143,7 +137,6 @@ class VariationalAutoencoder(nn.Module):
                 init.xavier_normal_(m.weight.data)
                 if m.bias is not None:
                     m.bias.data.zero_()
-
 
     def _kld(self, z, q_param, p_param=None):
         """Compute KL-divergence of some element z.    
