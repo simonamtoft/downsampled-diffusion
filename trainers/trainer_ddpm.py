@@ -27,8 +27,8 @@ class EMA():
 
 
 class TrainerDDPM(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         # set train loader as a cycle instead
         self.train_loader = cycle(self.train_loader)
 

@@ -15,7 +15,7 @@ def min_max_norm(x):
 
 
 class TrainerDRAW(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         
         # Setup learning rate scheduler
@@ -34,14 +34,16 @@ class TrainerDRAW(Trainer):
         self.name += f'_{config["T"]}'
 
     def log_images(self, x_hat, epoch):
+        log_shape = (self.n_samples, self.n_channels, self.image_size, self.image_size)
+        
         # reshape reconstruction
         x_recon = x_hat[:self.n_samples]
-        x_recon = torch.reshape(x_recon, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+        x_recon = torch.reshape(x_recon, log_shape)
         
         # sample from model
         x_sample = self.model.sample()
         x_sample = x_sample[:self.n_samples]
-        x_sample = torch.reshape(x_sample, (self.n_samples, self.n_channels, self.image_size, self.image_size))
+        x_sample = torch.reshape(x_sample, log_shape)
         
         # perform min-max normalization on samples
         x_sample = min_max_norm(x_sample)
