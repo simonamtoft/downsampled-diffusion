@@ -14,14 +14,17 @@ class TrainerVAE(Trainer):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=1):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         
-        # extract latent dim from config
-        self.z_dim = self.config['z_dim']
-
         # set latent sample dim
-        self.sample_dim = self.z_dim[0] if isinstance(self.z_dim, list) else self.z_dim
+        if isinstance(self.config['z_dim'], list):
+            self.sample_dim = self.config['z_dim'][0] 
+        else:
+            self.sample_dim = self.config['z_dim']
 
         # Define learning rate decay
-        lr_decay = {'n_epochs': 1000, 'delay': 150}
+        lr_decay = {
+            'n_epochs': int(self.n_steps*2), 
+            'delay': int(self.n_steps/2)
+        }
         
         # Set optimizer and learning rate scheduler
         self.opt = Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999))
