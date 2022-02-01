@@ -32,10 +32,19 @@ CONFIG_MODEL = {
         'lr': 2e-5,
         'batch_size': 32,
     },
+    # for mnist
+    # 'draw': {
+    #     'h_dim': 256,
+    #     'z_dim': 32,    
+    #     'T': 10,
+    #     'batch_size': 128,
+    #     'lr': 1e-3,
+    # },
+    # for Cifar
     'draw': {
-        'h_dim': 256,
-        'z_dim': 32,    
-        'T': 10,
+        'h_dim': 400,
+        'z_dim': 200,    
+        'T': 64,
         'batch_size': 128,
         'lr': 1e-3,
     },
