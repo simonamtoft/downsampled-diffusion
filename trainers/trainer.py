@@ -4,22 +4,23 @@ import wandb
 import torch
 import numpy as np
 from torch.optim import Adam
+from functools import partial
 
 from .train_helpers import compute_bits_dim
 
 
-def mean_and_bits_dim(loss:list, x_dim:int):
+def mean_and_bits_dim(x_dim:int, loss:list):
     """Takes mean of input loss and returns the bits dim instead of nats."""
     return compute_bits_dim(np.array(loss).mean(), x_dim)
 
 
-def nats_mean(loss:list, x_dim:int):
+def nats_mean(loss:list):
     """Takes mean of input loss, thus returning nats"""
     return np.array(loss).mean()
 
 
 class Trainer(object):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results', n_channels:int=1, n_samples:int=36):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results', n_channels:int=None, n_samples:int=36):
         """Boilerplate Trainer class, instantiating standard variables.
             config:         A dict that contains the necessary fields for training the specific model,
                             such as the learning rate and number of training steps/epochs to perform. 
@@ -42,19 +43,22 @@ class Trainer(object):
         self.name = config['model']
         
         # color channels of input data
-        if config['dataset'] not in ['mnist', 'omniglot']:
-            self.n_channels = 3
+        if n_channels is None:
+            if config['dataset'] not in ['mnist', 'omniglot']:
+                self.n_channels = 3
+            else:
+                self.n_channels = 1
         else:
-            self.n_channels = 1
+            self.n_channels = n_channels
         
         # dimensionality of data
-        self.x_dim = self.n_channels * self.image_size * self.image_size
+        self.x_dim = int(self.n_channels * self.image_size * self.image_size)
         
         # log loss as nats or bits/dim
         if self.n_channels == 1:
             self.loss_handle = nats_mean
         else:
-            self.loss_handle = mean_and_bits_dim
+            self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
         
         # define number of samples to take
         self.n_samples = n_samples

@@ -3,7 +3,6 @@ import wandb
 import torch
 import numpy as np
 import torch.nn as nn
-from functools import partial
 import torch.nn.functional as F
 
 from .trainer import Trainer
@@ -90,9 +89,9 @@ class TrainerDRAW(Trainer):
                 loss_elbo.append(elbo.item())
             
             # get mean losses
-            loss_recon = self.loss_handle(loss_recon, self.x_dim)
-            loss_kl = self.loss_handle(loss_kl, self.x_dim)
-            loss_elbo = self.loss_handle(loss_elbo, self.x_dim)
+            loss_recon = self.loss_handle(loss_recon)
+            loss_kl = self.loss_handle(loss_kl)
+            loss_elbo = self.loss_handle(loss_elbo)
 
             # Log train stuff
             train_losses.append(loss_elbo)
