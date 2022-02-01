@@ -93,9 +93,9 @@ class TrainerVAE(Trainer):
                 recon_train.append(torch.mean(recon).item())
             
             # get mean losses
-            recon_train = np.array(recon_train).mean()
-            kld_train = np.array(kld_train).mean()
-            elbo_train = np.array(elbo_train).mean()
+            recon_train = self.loss_handle(recon_train)
+            kld_train = self.loss_handle(kld_train)
+            elbo_train = self.loss_handle(elbo_train)
             
             # Log train losses
             train_losses.append(elbo_train)
@@ -134,9 +134,9 @@ class TrainerVAE(Trainer):
                     recon_val.append(torch.mean(recon).item())
             
             # get mean losses
-            recon_val = np.array(recon_val).mean()
-            kld_val = np.array(kld_val).mean()
-            elbo_val = np.array(elbo_val).mean()
+            recon_val = self.loss_handle(recon_val)
+            kld_val = self.loss_handle(kld_val)
+            elbo_val = self.loss_handle(elbo_val)
 
             # Log validation losses
             val_losses.append(elbo_val)
