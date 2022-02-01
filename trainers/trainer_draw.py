@@ -11,24 +11,6 @@ from .train_helpers import DeterministicWarmup, \
     log_images, lambda_lr
 
 
-def cross_entropy(b, c, x_hat, x):
-    """Computes cross-entropy for DRAW model on color image data."""
-    # fix dimensionality of data
-    x_hat = x_hat.view(b, c, -1)
-    x = x.view(b, c, -1)
-    
-    # compute mean cross-entropy loss of batch
-    target = torch.max(x, 1)[1]
-    loss = F.cross_entropy(x_hat, target, reduction='none')
-    return loss.sum(1).mean()
-
-
-def binary_cross_entropy(x_hat, x):
-    """Computes binary cross-entropy for DRAW model."""
-    loss = F.binary_cross_entropy(x_hat, x, reduction='none')
-    return loss.sum(1).mean()
-
-
 def min_max_norm(x):
     return (x - x.min()) / (x.max() - x.min())
 
@@ -47,11 +29,7 @@ class TrainerDRAW(Trainer):
         self.gamma = DeterministicWarmup(n=100)
         
         # Define loss function
-        if self.n_channels == 1:
-            # self.recon_fn = nn.BCELoss(reduction='none').to(self.device)
-            self.recon_fn = binary_cross_entropy
-        else:
-            self.recon_fn = partial(cross_entropy, self.batch_size, self.n_channels)
+        self.recon_fn = nn.BCELoss(reduction='none').to(self.device)
 
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
@@ -66,16 +44,9 @@ class TrainerDRAW(Trainer):
         x_sample = x_sample[:self.n_samples]
         x_sample = torch.reshape(x_sample, (self.n_samples, self.n_channels, self.image_size, self.image_size))
         
-        print('recon:', x_recon.min(), x_recon.max())
-        print('sample:', x_sample.min(), x_sample.max())
-        
-        # perform min-max normalization
-        x_recon = min_max_norm(x_recon)
+        # perform min-max normalization on samples
         x_sample = min_max_norm(x_sample)
-        
-        print('recon:', x_recon.min(), x_recon.max())
-        print('sample:', x_sample.min(), x_sample.max())
-
+    
         # log recon and sample
         name = f'{epoch}_{self.name}_{self.config["dataset"]}'
         log_images(x_recon, x_sample, self.res_folder, name, self.n_rows)
@@ -97,26 +68,21 @@ class TrainerDRAW(Trainer):
             loss_elbo = []
             alpha = next(self.gamma)
             for x, _ in iter(self.train_loader):
-                # batch_size = x.size(0)
-
                 # Pass through model
                 x = x.view(self.batch_size, -1).to(self.device)
                 x_hat, kld = self.model(x)
-                # if self.n_channels == 1:
                 x_hat = torch.sigmoid(x_hat)
 
                 # Compute losses
-                recon = self.recon_fn(x_hat, x)
+                recon = self.recon_fn(x_hat, x).sum(1).mean()
                 kl = kld.sum(1).mean()
                 loss = recon + alpha * kl
                 elbo = -(recon + kl)
 
-                # filter nan losses
-                if not torch.isnan(loss):
-                    # Update gradients
-                    loss.backward()
-                    self.opt.step()
-                    self.opt.zero_grad()
+                # Update gradients
+                loss.backward()
+                self.opt.step()
+                self.opt.zero_grad()
 
                 # save losses
                 loss_recon.append(recon.item())
@@ -137,7 +103,6 @@ class TrainerDRAW(Trainer):
             }, commit=False)
 
             # Update scheduler
-            # if "lr_decay" in config:
             self.scheduler.step()
 
             # Evaluate on validation set
@@ -148,16 +113,13 @@ class TrainerDRAW(Trainer):
                     loss_kl = []
                     loss_elbo = []
                     for x, _ in iter(self.val_loader):
-                        # batch_size = x.size(0)
-
                         # Pass through model
                         x = x.view(self.batch_size, -1).to(self.device)
                         x_hat, kld = self.model(x)
-                        # if self.n_channels == 1:
                         x_hat = torch.sigmoid(x_hat)
 
                         # Compute losses
-                        recon = self.recon_fn(x_hat, x)
+                        recon = self.recon_fn(x_hat, x).sum(1).mean()
                         kl = kld.sum(1).mean()
                         loss = recon + alpha * kl
                         elbo = -(recon + kl)
