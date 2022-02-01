@@ -27,7 +27,7 @@ class EMA():
 
 
 class TrainerDDPM(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         # set train loader as a cycle instead
         self.train_loader = cycle(self.train_loader)
@@ -128,9 +128,11 @@ class TrainerDDPM(Trainer):
         losses = self.train_loop()
         
         # Finalize training
-        torch.save(self.model, f'{self.res_folder}/{self.name}_model.pt')
-        wandb.save(f'{self.res_folder}/{self.name}_model.pt')
+        save_path = f'{self.res_folder}/{self.name}_model.pt'
+        torch.save(self.model, save_path)
+        wandb.save(save_path)
         wandb.finish()
+        os.remove(save_path)
         print(f"Training of {self.name} completed!")
         return losses
 

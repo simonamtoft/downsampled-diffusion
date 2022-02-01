@@ -15,7 +15,7 @@ def min_max_norm(x):
 
 
 class TrainerDRAW(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
         
         # Setup learning rate scheduler
@@ -60,7 +60,6 @@ class TrainerDRAW(Trainer):
         # Training and validation loop
         train_losses = []
         val_losses = []
-        
         for epoch in range(self.n_steps):
             # Training Epoch
             self.model.train()

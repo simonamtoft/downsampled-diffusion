@@ -20,8 +20,8 @@ def nats_mean(loss:list):
 
 
 class Trainer(object):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, res_folder:str='./results', n_channels:int=None, n_samples:int=36):
-        """Boilerplate Trainer class, instantiating standard variables.
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None, n_samples:int=36):
+        """Trainer class, instantiating standard variables.
             config:         A dict that contains the necessary fields for training the specific model,
                             such as the learning rate and number of training steps/epochs to perform. 
                             This config is logged to wandb if wandb_name is set.
@@ -33,6 +33,9 @@ class Trainer(object):
                             If the string is empty, the run wont be logged.
             mute:           Whether to mute all prints such as tqdm during training.
             res_folder:     A string to the path of the results folder for any images etc.
+            n_channels:     Number of channels in the image data. 
+                            If None, it is set to 1 for mnist and omniglot, and 3 otherwise.
+            n_samples:      Number of samples to generate and log as an image for each log made to wandb.
         """
         
         # Extract fields from config
@@ -100,9 +103,8 @@ class Trainer(object):
             json.dump(losses, f)
     
     def save_to_wandb(self, save_path):
-        torch.save(self.model,save_path)
+        torch.save(self.model, save_path)
         wandb.save(save_path)
-        # os.remove(save_path)
     
     def train(self):
         raise NotImplementedError('Implement in subclass...')
