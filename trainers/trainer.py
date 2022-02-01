@@ -11,7 +11,8 @@ from .train_helpers import compute_bits_dim
 
 def mean_and_bits_dim(x_dim:int, loss:list):
     """Takes mean of input loss and returns the bits dim instead of nats."""
-    return compute_bits_dim(np.array(loss).mean(), x_dim)
+    nats = nats_mean(loss)
+    return compute_bits_dim(nats, x_dim)
 
 
 def nats_mean(loss:list):
@@ -58,10 +59,10 @@ class Trainer(object):
         self.x_dim = int(self.n_channels * self.image_size * self.image_size)
         
         # log loss as nats or bits/dim
-        if self.n_channels == 1:
-            self.loss_handle = nats_mean
-        else:
-            self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
+        # if self.n_channels == 1:
+        self.loss_handle = nats_mean
+        # else:
+        #     self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
         
         # define number of samples to take
         self.n_samples = n_samples
