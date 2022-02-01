@@ -9,7 +9,7 @@ from utils import get_dataloader, get_color_channels, \
 from trainers import TrainerDDPM, TrainerDownsampleDDPM, \
     TrainerDRAW, TrainerVAE
 from models import MODEL_NAMES, Unet, DDPM, DownsampleDDPM, \
-    DRAW, VariationalAutoencoder
+    DRAW, VariationalAutoencoder, LadderVariationalAutoencoder
 
 # setup path to data root
 DATA_ROOT = '../data/'
@@ -51,6 +51,14 @@ CONFIG_MODEL = {
     'vae': {
         'h_dim': [512, 256, 128, 64],
         'z_dim': 64,
+        'batch_size': 128,
+        'lr': 1e-3,
+        'as_beta': True,
+    },
+    'lvae': {
+        # Bottom to top
+        'h_dim': [512, 256, 256],
+        'z_dim': [64, 32, 32], 
         'batch_size': 128,
         'lr': 1e-3,
         'as_beta': True,
@@ -104,6 +112,9 @@ def get_trainer(config:dict, mute:bool):
         trainer = TrainerDRAW(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
     elif config['model'] == 'vae':
         model = VariationalAutoencoder(config, x_dim)
+        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
+    elif config['model'] == 'lvae':
+        model = LadderVariationalAutoencoder(config, x_dim)
         trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
     else: 
         raise NotImplementedError('Specified model not implemented.')

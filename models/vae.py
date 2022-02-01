@@ -115,6 +115,11 @@ class VariationalAutoencoder(nn.Module):
         h_dim = config['h_dim']
         z_dim = config['z_dim']
         
+        # for when used by LadderVAE
+        if isinstance(z_dim, list):
+            z_dim = z_dim[0]
+        
+        # adaptation such that it can be trained on 2d point data.
         if isinstance(x_dim, list):
             enc_dims = [x_dim[0], h_dim, z_dim]
             dec_dim = [z_dim, list(reversed(h_dim)), x_dim[1]]
