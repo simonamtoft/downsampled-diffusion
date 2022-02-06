@@ -50,6 +50,10 @@ class TrainerDDPM(Trainer):
         # update name to include the depth of the model
         self.name += f'_{config["timesteps"]}'
         
+        # define whether to log reconstructions and samples or not
+        self.log_recon = False
+        self.log_sample = True
+        
     def reset_ema(self):
         self.ema_model.load_state_dict(self.model.state_dict())
 
@@ -88,10 +92,10 @@ class TrainerDDPM(Trainer):
         x_recon = self.model.reconstruct(x)
         return x_recon
     
-    def log_images(self, x, s:bool=True, r:bool=True):
+    def log_images(self, x):
         # generate samples and reconstructions
-        samples = self.sample() if s else None
-        recon = self.recon(x) if r else None
+        samples = self.sample() if self.log_sample else None
+        recon = self.recon(x) if self.log_recon else None
 
         # min-max normalization
         # samples = min_max_norm(samples)
@@ -156,7 +160,7 @@ class TrainerDDPM(Trainer):
                 'train_loss': loss_,
             }, commit=(not is_milestone))
             if is_milestone:
-                self.log_images(x, r=False)
+                self.log_images(x)
 
             # update step
             self.step += 1
@@ -164,8 +168,8 @@ class TrainerDDPM(Trainer):
 
 
 class TrainerDownsampleDDPM(TrainerDDPM):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
         
     def train_loop(self):
         losses = []
