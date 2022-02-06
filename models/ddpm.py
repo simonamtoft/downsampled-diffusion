@@ -7,9 +7,11 @@ thanks a lot for open-sourcing :)
 """
 import numpy as np
 import torch
-from torch import nn
+import torch.nn as nn
 from functools import partial
 
+from .updown_sampling import get_downsampling, \
+    get_upsampling
 from .losses import l1_loss, l2_loss
 from .helpers import default, extract, \
     noise_like, cosine_beta_schedule, \
@@ -212,32 +214,18 @@ class DDPM(nn.Module):
 class DownsampleDDPM(DDPM):
     def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
         super().__init__(config, denoise_model, device, color_channels)
-
-        # number of channels inside the down-up sample network
-        self.channels = [int(config['unet_chan'] / 2), config['unet_chan']]
         
         # number of downsamples
         n_downsamples = 1
         self.dim_reduc = np.power(2, n_downsamples)
+        shape = (self.in_channels, self.image_size, self.image_size)
+        mode = 'deterministic'
         
         # Instantiate downsample network
-        self.downsample = nn.Sequential(
-            nn.Conv2d(self.in_channels, self.channels[0], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(self.channels[0], self.channels[1], kernel_size=2, padding=0, stride=2)
-        )
+        self.downsample = get_downsampling(mode, shape, self.dim_reduc)
 
         # Instantiate upsample network
-        self.upsample = nn.Sequential(
-            nn.ConvTranspose2d(self.channels[1], self.channels[0], kernel_size=4, stride=2, padding=1),
-            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(self.channels[0], self.channels[0], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(self.channels[0], self.in_channels, kernel_size=1, padding=0),
-        )
+        self.upsample = get_upsampling(mode, shape, self.dim_reduc)
     
     @torch.no_grad()
     def p_sample_loop(self, shape:tuple):
