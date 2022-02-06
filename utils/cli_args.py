@@ -32,6 +32,24 @@ def get_args(config: dict, data_names: list, model_names: list) -> tuple:
         type=int,
         dest='n_steps'
     )
+    
+    # Pick batch size
+    parser.add_argument(
+        '-bs',
+        help='Pick batch size of data.', 
+        default=32,
+        type=int,
+        dest='batch_size'
+    )
+    
+    # Pick image size
+    parser.add_argument(
+        '-is',
+        help='Pick image size of data.', 
+        default=32,
+        type=int,
+        dest='image_size'
+    )
 
     # Pick whether to mute all outputs or not.
     parser.add_argument(

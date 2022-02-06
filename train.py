@@ -19,18 +19,17 @@ WANDB_PROJECT = 'ddpm-test'
 
 # standard config for every model
 CONFIG = {
-    'image_size': 32,
+    'lr': 1e-3, # standard for VAE and DRAW models
 }
 
 # specific model architecture config
 CONFIG_MODEL = {
     'ddpm': {
+        'lr': 2e-5,
         'unet_chan': 64,
         'unet_dims': (1, 2, 4, 8),
         'timesteps': 1000,
         'loss_type': 'l2',
-        'lr': 2e-5,
-        'batch_size': 64,
         'beta_schedule': 'cosine',
     },
     # for mnist
@@ -38,34 +37,23 @@ CONFIG_MODEL = {
     #     'h_dim': 256,
     #     'z_dim': 32,    
     #     'T': 10,
-    #     'batch_size': 128,
-    #     'lr': 1e-3,
-    #     'image_size': 28,
     # },
     # for Cifar
     'draw': {
         'h_dim': 400,
         'z_dim': 200,
         'T': 16,
-        'batch_size': 128,
-        'lr': 1e-3,
     },
     'vae': {
         'h_dim': [512, 256, 128, 64],
         'z_dim': 64,
-        'batch_size': 128,
-        'lr': 1e-3,
         'as_beta': True,
-        'image_size': 28,
     },
     'lvae': {
         # Bottom to top
         'h_dim': [512, 256, 256],
-        'z_dim': [64, 32, 32], 
-        'batch_size': 128,
-        'lr': 1e-3,
+        'z_dim': [64, 32, 32],
         'as_beta': True,
-        'image_size': 28,
     }
 }
 
@@ -97,10 +85,10 @@ def get_trainer(config:dict, mute:bool):
     # instantiate model and trainer for specified model and dataset
     if config['model'] == 'ddpm':
         # instantiate latent model
-        unet_in = config['unet_chan'] if config['downsample'] else color_channels
+        # unet_in = color_channels * 2 if config['downsample'] else color_channels
         latent_model = Unet(
             dim=config['unet_chan'],
-            in_channels=unet_in,
+            in_channels=color_channels,
             dim_mults=config['unet_dims'],
         )
 
