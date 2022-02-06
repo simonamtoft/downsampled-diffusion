@@ -34,10 +34,6 @@ class TrainerVAE(Trainer):
         
         # linear deterministic warmup over n epochs (from 0 to 1)
         self.gamma = DeterministicWarmup(n=100)
-        
-        # number of samples has to be lower than batch size
-        if self.n_samples > self.batch_size:
-            raise ValueError(f'Number of samples ({self.n_samples_}) has to be lower than batch size ({self.batch_size}) for TrainerVAE.')
     
     def log_images(self, x_hat, epoch):
         # reshape reconstruction
@@ -150,10 +146,6 @@ class TrainerVAE(Trainer):
             self.log_images(x_hat, epoch)
 
         # Finalize training
-        save_path = f'{self.res_folder}/{self.name}_model.pt'
-        self.save_to_wandb(save_path)
-        wandb.finish()
-        os.remove(save_path)
-        print(f"Training of {self.name} completed!")
+        self.finalize()
         return train_losses, val_losses
     

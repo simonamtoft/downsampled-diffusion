@@ -14,6 +14,17 @@ def compute_bits_dim(nats, x_dim:int):
     return bits_dim
 
 
+def mean_and_bits_dim(x_dim:int, loss:list):
+    """Takes mean of input loss and returns the bits dim instead of nats."""
+    nats = nats_mean(loss)
+    return compute_bits_dim(nats, x_dim)
+
+
+def nats_mean(loss:list):
+    """Takes mean of input loss, thus returning nats"""
+    return np.array(loss).mean()
+
+
 def cycle(dl):
     while True:
         for data in dl:
@@ -61,22 +72,39 @@ def bce_loss(r, x):
     return -torch.sum(x * torch.log(r + 1e-8) + (1 - x) * torch.log(1 - r + 1e-8), dim=-1)
 
 
-def log_images(x_recon, x_sample, folder:str, name:str, nrow:int):
-    """Log reconstruction and sample images to wandb, for a VAE / DRAW model."""
+def delete_if_exists(path):
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def log_images(x_recon=None, x_sample=None, folder:str='.', name:str='tmp', nrow:int=None):
+    """Log reconstruction and sample images to wandb."""
+
+    # instantiate
+    log_dict = {}
+    name_recon = './tmp/recon_tmp.png'
+    name_sample = './tmp/sample_tmp.png'
     
-    name_recon = f'{folder}/recon_{name}.png'
-    name_sample = f'{folder}/sample_{name}.png'
-    
-    # save batch of images
-    utils.save_image(x_recon, name_recon, nrow=nrow)
-    utils.save_image(x_sample, name_sample, nrow=nrow)
+    # add reconstruction to log
+    if x_recon is not None:
+        name_recon = f'{folder}/recon_{name}.png'
+        utils.save_image(x_recon, name_recon, nrow=nrow)
+        log_dict['recon'] = wandb.Image(name_recon)
+     
+    # add samples to log
+    if x_sample is not None:
+        name_sample = f'{folder}/sample_{name}.png'
+        utils.save_image(x_sample, name_sample, nrow=nrow)
+        log_dict['sample'] = wandb.Image(name_sample)
     
     # Log the images to wandb
-    wandb.log({
-        "recon": wandb.Image(name_recon),
-        "sample": wandb.Image(name_sample)
-    }, commit=True)
+    wandb.log(log_dict, commit=True)
 
     # Delete the logged images
-    os.remove(name_recon)
-    os.remove(name_sample)
+    delete_if_exists(name_recon)
+    delete_if_exists(name_sample)
+
+
+def min_max_norm(x):
+    """Returns the min-max normalization of x."""
+    return (x - x.min()) / (x.max() - x.min())

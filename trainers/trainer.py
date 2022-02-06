@@ -6,23 +6,14 @@ import numpy as np
 from torch.optim import Adam
 from functools import partial
 
-from .train_helpers import compute_bits_dim
-
-
-def mean_and_bits_dim(x_dim:int, loss:list):
-    """Takes mean of input loss and returns the bits dim instead of nats."""
-    nats = nats_mean(loss)
-    return compute_bits_dim(nats, x_dim)
-
-
-def nats_mean(loss:list):
-    """Takes mean of input loss, thus returning nats"""
-    return np.array(loss).mean()
+from .train_helpers import compute_bits_dim, \
+    mean_and_bits_dim, nats_mean
 
 
 class Trainer(object):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None, n_samples:int=36):
-        """Trainer class, instantiating standard variables.
+        """
+        Trainer class, instantiating standard variables.
             config:         A dict that contains the necessary fields for training the specific model,
                             such as the learning rate and number of training steps/epochs to perform. 
                             This config is logged to wandb if wandb_name is set.
@@ -46,6 +37,12 @@ class Trainer(object):
         self.image_size = config['image_size']
         self.name = config['model']
         
+        # define number of samples to take
+        self.n_samples = n_samples
+        self.n_rows = int(np.sqrt(self.n_samples))
+        if self.n_samples > self.batch_size:
+            raise ValueError(f'Number of samples ({self.n_samples}) has to be lower than batch size ({self.batch_size}) for TrainerVAE.')
+        
         # color channels of input data
         if n_channels is None:
             if config['dataset'] not in ['mnist', 'omniglot']:
@@ -63,11 +60,7 @@ class Trainer(object):
         self.loss_handle = nats_mean
         # else:
         #     self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
-        
-        # define number of samples to take
-        self.n_samples = n_samples
-        self.n_rows = int(np.sqrt(self.n_samples))
-
+    
         # Setup device to run on
         self.device = device
 
@@ -103,9 +96,32 @@ class Trainer(object):
         with open(filename, 'w') as f:
             json.dump(losses, f)
     
-    def save_to_wandb(self, save_path):
-        torch.save(self.model, save_path)
+    def save_model(self, save_path):
+        """
+        Save the state dict of the model.
+        https://pytorch.org/tutorials/beginner/saving_loading_models.html
+        """
+        save_data = {
+            'model': self.model.state_dict()
+        }
+        torch.save(save_data, save_path)
+
+    def load_model(self, save_path):
+        """Load the state dict into the instantiated model."""
+        save_data = torch.load(save_path)
+        self.model.load_state_dict(save_data['model'])
+
+    def finalize(self):
+        """Finalize training by saving the model to wandb and finishing the wandb run."""
+        save_path = f'{self.res_folder}/model_{self.name}.pt'
+        self.save_model(save_path)
         wandb.save(save_path)
+        wandb.finish()
+        os.remove(save_path)
+        print(f"Training of {self.name} completed!")
+
+    def get_model(self):
+        return self.model
     
     def train(self):
         raise NotImplementedError('Implement in subclass...')

@@ -1,3 +1,10 @@
+"""
+DDPM implementation, which is a mixture of
+https://github.com/lucidrains/denoising-diffusion-pytorch/blob/7706bdfc6f527f58d33f84b7b522e61e6e3164b3/denoising_diffusion_pytorch/denoising_diffusion_pytorch.py
+https://github.com/openai/improved-diffusion/blob/e94489283bb876ac1477d5dd7709bbbd2d9902ce/improved_diffusion/gaussian_diffusion.py
+https://github.com/CompVis/latent-diffusion/blob/main/ldm/models/diffusion/ddpm.py
+thanks a lot for open-sourcing :) 
+"""
 import numpy as np
 import torch
 from torch import nn
@@ -5,7 +12,8 @@ from functools import partial
 
 from .losses import l1_loss, l2_loss
 from .helpers import default, extract, \
-    noise_like, cosine_beta_schedule
+    noise_like, cosine_beta_schedule, \
+    make_beta_schedule
 
 
 class DDPM(nn.Module):
@@ -26,10 +34,11 @@ class DDPM(nn.Module):
         elif config['loss_type'] == 'l2':
             self.get_loss = l2_loss
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f'Loss type {config["loss_type"]} not implemented for DDPM.')
         
         # Initialize betas (variances)
-        betas = cosine_beta_schedule(self.timesteps)
+        betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
+        # cosine_beta_schedule(self.timesteps)
         
         # Compute alphas from betas
         alphas = 1. - betas
@@ -69,7 +78,28 @@ class DDPM(nn.Module):
     #     log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_start.shape)
     #     return mean, variance, log_variance
 
+    def reconstruct(self, x):
+        """Reconstructs x_hat from x"""
+        
+        # extract shape from x
+        shape = x.shape
+        b = shape[0]
+        
+        # set t=T for each x
+        t_T = torch.full((b,), self.timesteps-1, device=self.device, dtype=torch.long)
+        
+        # generate some random noise
+        noise = torch.randn(shape, device=self.device)
+        
+        # sample noisy x from q distribution for the last step T
+        x_T = self.q_sample(x, t_T, noise)
+        
+        # return reconstruction
+        x_recon = self.denoise(x_T, t_T)
+        return x_recon
+    
     def predict_start_from_noise(self, x_t, t, noise):
+        """Predicts x_start from x_t"""
         return (
             extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
             extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
@@ -146,6 +176,7 @@ class DDPM(nn.Module):
     #     return img
 
     def q_sample(self, x_start, t, noise=None):
+        """Samples a noisy x_t given the starting x and a timestep t."""
         noise = default(noise, lambda: torch.randn_like(x_start))
 
         return (
@@ -159,10 +190,10 @@ class DDPM(nn.Module):
         noise = default(noise, lambda: torch.randn_like(x_start))
 
         # sample noisy x from q distribution for step t
-        x_noisy = self.q_sample(x_start, t, noise)
+        x_t = self.q_sample(x_start, t, noise)
         
         # denoise the noisy x at step t
-        x_recon = self.denoise(x_noisy, t)
+        x_recon = self.denoise(x_t, t)
 
         # compute loss
         loss = self.get_loss(noise, x_recon)
@@ -174,7 +205,7 @@ class DDPM(nn.Module):
         t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
         
         # denoise x at timestep t, and compute loss
-        loss = self.p_losses(x, t, *args, **kwargs)       
+        loss = self.p_losses(x, t, *args, **kwargs)
         return loss
 
 

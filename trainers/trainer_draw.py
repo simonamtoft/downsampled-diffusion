@@ -4,14 +4,11 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils import clip_grad_norm_
 
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
-    log_images, lambda_lr
-
-
-def min_max_norm(x):
-    return (x - x.min()) / (x.max() - x.min())
+    log_images, lambda_lr, min_max_norm
 
 
 class TrainerDRAW(Trainer):
@@ -81,6 +78,7 @@ class TrainerDRAW(Trainer):
 
                 # Update gradients
                 loss.backward()
+                clip_grad_norm_(self.model.parameters(), 1)
                 self.opt.step()
                 self.opt.zero_grad()
 
@@ -146,9 +144,5 @@ class TrainerDRAW(Trainer):
                     self.log_images(x_hat, epoch)
         
         # Finalize training
-        save_path = f'{self.res_folder}/{self.name}_model.pt'
-        self.save_to_wandb(save_path)
-        wandb.finish()
-        os.remove(save_path)
-        print(f"Training of {self.name} completed!")
+        self.finalize()
         return train_losses, val_losses

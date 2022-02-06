@@ -30,7 +30,8 @@ CONFIG_MODEL = {
         'timesteps': 1000,
         'loss_type': 'l2',
         'lr': 2e-5,
-        'batch_size': 32,
+        'batch_size': 64,
+        'beta_schedule': 'cosine',
     },
     # for mnist
     # 'draw': {
@@ -39,12 +40,13 @@ CONFIG_MODEL = {
     #     'T': 10,
     #     'batch_size': 128,
     #     'lr': 1e-3,
+    #     'image_size': 28,
     # },
     # for Cifar
     'draw': {
         'h_dim': 400,
-        'z_dim': 200,    
-        'T': 64,
+        'z_dim': 200,
+        'T': 16,
         'batch_size': 128,
         'lr': 1e-3,
     },
@@ -54,6 +56,7 @@ CONFIG_MODEL = {
         'batch_size': 128,
         'lr': 1e-3,
         'as_beta': True,
+        'image_size': 28,
     },
     'lvae': {
         # Bottom to top
@@ -62,6 +65,7 @@ CONFIG_MODEL = {
         'batch_size': 128,
         'lr': 1e-3,
         'as_beta': True,
+        'image_size': 28,
     }
 }
 
@@ -139,6 +143,6 @@ if __name__ == '__main__':
     losses = trainer.train()
     
     # Store losses
-    trainer.save_losses(losses)
+    # trainer.save_losses(losses)
     
     print("train.py script finished!")

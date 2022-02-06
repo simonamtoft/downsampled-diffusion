@@ -6,7 +6,8 @@ import numpy as np
 from torchvision import utils
 
 from .trainer import Trainer
-from .train_helpers import cycle, num_to_groups
+from .train_helpers import cycle, num_to_groups, \
+    log_images, min_max_norm
 
 
 class EMA():
@@ -58,67 +59,54 @@ class TrainerDDPM(Trainer):
             return
         self.ema.update_model_average(self.ema_model, self.model)
     
-    def sample(self, n_images=36):
+    def save_model(self, save_path):
+        """Save the state dict of the model and ema model."""
+        save_data = {
+            'model': self.model.state_dict(),
+            'ema_model': self.ema_model.state_dict(),
+        }
+        torch.save(save_data, save_path)
+    
+    def load_model(self, save_path):
+        """Load the state dict into the instantiated model and ema model."""
+        save_data = torch.load(save_path)
+        self.model.load_state_dict(save_data['model'])
+        self.ema_model.load_state_dict(save_data['ema_model'])
+    
+    def sample(self):
         """Generate n_images samples from the model."""
-        batches = num_to_groups(n_images, self.batch_size)
+        batches = num_to_groups(self.n_samples, self.batch_size)
         all_images_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
-        all_images = torch.cat(all_images_list, dim=0)
-        samples = (all_images + 1) * 0.5
-        return samples, int(np.sqrt(n_images))
+        samples = torch.cat(all_images_list, dim=0)
+        # samples = (samples + 1) * 0.5
+        return samples
     
-    def train_loop(self):
-        losses = []
-        while self.step < self.n_steps:
-            train_loss = []
-            for _ in range(self.gradient_accumulate_every):
-                # retrieve a batch and port to device
-                x, _ = next(self.train_loader)
-                x = x.to(self.device)
-                
-                # perform a model forward pass
-                loss = self.model(x)
-
-                # backward pass
-                objective = loss / self.gradient_accumulate_every
-                objective.backward()
-
-                # save loss
-                train_loss.append(loss.item())
-            
-            # update gradients
-            self.opt.step()
-            self.opt.zero_grad()
-
-            # update EMA
-            if self.step % self.update_ema_every == 0:
-                self.step_ema()
-            
-            # sample and log sample to wandb
-            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
-            if is_milestone:
-                samples, nrows = self.sample()
-                
-                # save image
-                step = self.step // self.save_and_sample_every
-                img_path = f'{self.res_folder}/sample_{step}_{self.name}_{self.config["dataset"]}.png'
-                utils.save_image(samples, img_path, nrow=nrows)
-                wandb.log({'sample': wandb.Image(img_path)}, commit=False)
-            
-            # log loss to wandb
-            loss_ = np.mean(train_loss)
-            losses.append(loss_)
-            wandb.log({
-                'train_loss': loss_,
-            }, commit=True)
-
-            # remove local image save
-            if is_milestone:
-                os.remove(img_path)
-
-            # update step
-            self.step += 1
-        return losses
+    def recon(self, x):
+        """Generate n_images reconstructions from the model."""
+        assert x.shape[0] >= self.n_samples
+        x = x[:self.n_samples]
+        x_recon = self.model.reconstruct(x)
+        return x_recon
     
+    def log_images(self, x, s:bool=True, r:bool=True):
+        # generate samples and reconstructions
+        samples = self.sample() if s else None
+        recon = self.recon(x) if r else None
+
+        # min-max normalization
+        # samples = min_max_norm(samples)
+        # recon = min_max_norm(recon)
+
+        # log images to wandb
+        step = self.step // self.save_and_sample_every
+        log_images(
+            x_recon=recon, 
+            x_sample=samples, 
+            folder=self.res_folder, 
+            name=f'{step}_{self.name}_{self.config["dataset"]}.png', 
+            nrow=int(np.sqrt(self.n_samples))
+        )
+
     def train(self):
         # Instantiate wandb run
         wandb.init(project=self.wandb_name, config=self.config)
@@ -128,12 +116,50 @@ class TrainerDDPM(Trainer):
         losses = self.train_loop()
         
         # Finalize training
-        save_path = f'{self.res_folder}/{self.name}_model.pt'
-        torch.save(self.model, save_path)
-        wandb.save(save_path)
-        wandb.finish()
-        os.remove(save_path)
-        print(f"Training of {self.name} completed!")
+        self.finalize()
+        return losses
+    
+    def train_loop(self):
+        losses = []
+        while self.step < self.n_steps:
+            train_loss = []
+            for _ in range(self.gradient_accumulate_every):
+                # retrieve a batch and port to device
+                x, _ = next(self.train_loader)
+                x = x.to(self.device)
+
+                # perform a model forward pass
+                loss = self.model(x)
+
+                # backward pass
+                objective = loss / self.gradient_accumulate_every
+                objective.backward()
+
+                # save loss
+                train_loss.append(loss.item())
+
+            # store losses
+            loss_ = np.mean(train_loss)
+            losses.append(loss_)
+
+            # update gradients
+            self.opt.step()
+            self.opt.zero_grad()
+
+            # update EMA
+            if self.step % self.update_ema_every == 0:
+                self.step_ema()
+
+            # log stuff to wandb
+            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
+            wandb.log({
+                'train_loss': loss_,
+            }, commit=(not is_milestone))
+            if is_milestone:
+                self.log_images(x, r=False)
+
+            # update step
+            self.step += 1
         return losses
 
 
@@ -165,6 +191,10 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 train_latent.append(loss_latent.item())
                 train_recon.append(loss_recon.item())
             
+            # store losses
+            loss_ = np.mean(train_loss)
+            losses.append(loss_)
+            
             # update gradients
             self.opt.step()
             self.opt.zero_grad()
@@ -173,22 +203,14 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
             
-            # sample and log sample to wandb
-            img_path, is_milestone = self.sample()
-            
-            # log loss to wandb
-            loss_ = np.mean(train_loss)
-            losses.append(loss_)
+            # log stuff to wandb
+            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
             wandb.log({
                 'train_loss': loss_,
-                'train_latent': np.mean(train_latent),
-                'train_recon': np.mean(train_recon),
-            }, commit=True)
-
-            # remove local image save
+            }, commit=(not is_milestone))
             if is_milestone:
-                os.remove(img_path)
-
+                self.log_images(x)
+                
             # update step
             self.step += 1
         return losses
