@@ -17,8 +17,10 @@ def binarize(x):
 
 
 def inv_binarize(x):
-    """Used as lambda function to binarize data x 
-        and reverse black and white"""
+    """
+    Used as lambda function to binarize data x 
+    and reverse black and white
+    """
     return 1 - torch.bernoulli(x)
 
 
@@ -65,8 +67,8 @@ def get_transforms(config:dict):
 
 
 def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15) -> DataLoader:
-    """ Returns dataloaders for train and validation splits 
-        of the dataset specified in config.
+    """ 
+    Returns dataloaders for train and validation splits of the dataset specified in config.
         
     Args
         config (dict):      A dict determining the 'dataset' to use and the resulting 

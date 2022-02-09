@@ -1,6 +1,7 @@
 import os
 import torch
 import json
+import numpy as np
 from functools import reduce
 from operator import mul
 
@@ -80,34 +81,50 @@ def get_trainer(config:dict, mute:bool):
     x_shape = [color_channels, config['image_size'], config['image_size']]
     
     # get flatten shape of input data
-    x_dim = reduce(mul, x_shape, 1)    
+    x_dim = reduce(mul, x_shape, 1)
     
     # instantiate model and trainer for specified model and dataset
     if config['model'] == 'ddpm':
-        # instantiate latent model
-        # unet_in = color_channels * 2 if config['downsample'] else color_channels
-        latent_model = Unet(
-            dim=config['unet_chan'],
-            in_channels=color_channels,
-            dim_mults=config['unet_dims'],
-        )
-
-        # instantiate diffusion model and trainer
-        if config['downsample']:
-            model = DownsampleDDPM(config, latent_model, device, color_channels)
-            trainer = TrainerDownsampleDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
-        else:
+        if config['n_downsamples'] == 0:
+            latent_model = Unet(
+                dim=config['unet_chan'],
+                in_channels=color_channels,
+                dim_mults=config['unet_dims'],
+            )
             model = DDPM(config, latent_model, device, color_channels)
-            trainer = TrainerDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
+            trainer = TrainerDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+        else:
+            # set mode of down-up sampling architecture.
+            # options: 
+            #   deterministic
+            #   convolutional
+            #   convolutional_plus
+            #   convolutional_unet
+            #   autoencoder
+            config['mode'] = 'autoencoder'
+            
+            # instantiate latent model
+            unet_in = color_channels
+            if 'convolutional' in config['mode']:
+                unet_in *= np.power(2, config['n_downsamples']).astype(int)
+            latent_model = Unet(
+                dim=config['unet_chan'],
+                in_channels=unet_in,
+                dim_mults=config['unet_dims'],
+            )
+            
+            # instantiate DDPM
+            model = DownsampleDDPM(config, latent_model, device, color_channels)
+            trainer = TrainerDownsampleDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
     elif config['model'] == 'draw':
         model = DRAW(config, x_dim)
-        trainer = TrainerDRAW(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
+        trainer = TrainerDRAW(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
     elif config['model'] == 'vae':
         model = VariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
+        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
     elif config['model'] == 'lvae':
         model = LadderVariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute)
+        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
     else: 
         raise NotImplementedError('Specified model not implemented.')
     return trainer

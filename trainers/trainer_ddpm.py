@@ -1,9 +1,7 @@
-import os
 import copy
 import wandb
 import torch
 import numpy as np
-from torchvision import utils
 
 from .trainer import Trainer
 from .train_helpers import cycle, num_to_groups, \
@@ -39,21 +37,21 @@ class TrainerDDPM(Trainer):
         # specific DDPM trainer stuff
         self.gradient_accumulate_every = 2
         self.save_and_sample_every = 1000
-        
+
         # EMA model for DDPM training...
         self.step_start_ema = 2000
         self.update_ema_every = 10
         self.ema = EMA(0.995)
         self.ema_model = copy.deepcopy(self.model)
         self.reset_ema()
-        
+
         # update name to include the depth of the model
         self.name += f'_{config["timesteps"]}'
-        
+
         # define whether to log reconstructions and samples or not
-        self.log_recon = False
+        self.log_recon = True
         self.log_sample = True
-        
+
     def reset_ema(self):
         self.ema_model.load_state_dict(self.model.state_dict())
 
@@ -62,7 +60,7 @@ class TrainerDDPM(Trainer):
             self.reset_ema()
             return
         self.ema.update_model_average(self.ema_model, self.model)
-    
+
     def save_model(self, save_path):
         """Save the state dict of the model and ema model."""
         save_data = {
@@ -70,13 +68,13 @@ class TrainerDDPM(Trainer):
             'ema_model': self.ema_model.state_dict(),
         }
         torch.save(save_data, save_path)
-    
+
     def load_model(self, save_path):
         """Load the state dict into the instantiated model and ema model."""
         save_data = torch.load(save_path)
         self.model.load_state_dict(save_data['model'])
         self.ema_model.load_state_dict(save_data['ema_model'])
-    
+
     def sample(self):
         """Generate n_images samples from the model."""
         batches = num_to_groups(self.n_samples, self.batch_size)
@@ -84,22 +82,18 @@ class TrainerDDPM(Trainer):
         samples = torch.cat(all_images_list, dim=0)
         # samples = (samples + 1) * 0.5
         return samples
-    
+
     def recon(self, x):
         """Generate n_images reconstructions from the model."""
         assert x.shape[0] >= self.n_samples
         x = x[:self.n_samples]
         x_recon = self.model.reconstruct(x)
         return x_recon
-    
+
     def log_images(self, x):
         # generate samples and reconstructions
         samples = self.sample() if self.log_sample else None
         recon = self.recon(x) if self.log_recon else None
-
-        # min-max normalization
-        # samples = min_max_norm(samples)
-        # recon = min_max_norm(recon)
 
         # log images to wandb
         step = self.step // self.save_and_sample_every
@@ -108,7 +102,7 @@ class TrainerDDPM(Trainer):
             x_sample=samples, 
             folder=self.res_folder, 
             name=f'{step}_{self.name}_{self.config["dataset"]}.png', 
-            nrow=int(np.sqrt(self.n_samples))
+            nrow=self.n_rows
         )
 
     def train(self):
@@ -118,7 +112,7 @@ class TrainerDDPM(Trainer):
 
         # run training
         losses = self.train_loop()
-        
+
         # Finalize training
         self.finalize()
         return losses
@@ -170,7 +164,7 @@ class TrainerDDPM(Trainer):
 class TrainerDownsampleDDPM(TrainerDDPM):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
-        
+
     def train_loop(self):
         losses = []
         while self.step < self.n_steps:
@@ -181,7 +175,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 # retrieve a batch and port to device
                 x, _ = next(self.train_loader)
                 x = x.to(self.device)
-                
+
                 # perform a model forward pass
                 loss_latent, loss_recon = self.model(x)
                 loss = loss_latent + loss_recon
@@ -194,11 +188,13 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 train_loss.append(loss.item())
                 train_latent.append(loss_latent.item())
                 train_recon.append(loss_recon.item())
-            
+
             # store losses
-            loss_ = np.mean(train_loss)
+            loss_ = self.loss_handle(train_loss)
+            loss_latent_ = self.loss_handle(train_latent)
+            loss_recon_ = self.loss_handle(train_recon)
             losses.append(loss_)
-            
+
             # update gradients
             self.opt.step()
             self.opt.zero_grad()
@@ -206,15 +202,17 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             # update EMA
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
-            
+
             # log stuff to wandb
             is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
             wandb.log({
                 'train_loss': loss_,
+                'train_latent': loss_latent_,
+                'train_recon': loss_recon_
             }, commit=(not is_milestone))
             if is_milestone:
                 self.log_images(x)
-                
+
             # update step
             self.step += 1
         return losses

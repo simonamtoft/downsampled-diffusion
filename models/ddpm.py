@@ -16,19 +16,22 @@ from .losses import l1_loss, l2_loss
 from .helpers import default, extract, \
     noise_like, cosine_beta_schedule, \
     make_beta_schedule
+from utils import min_max_norm
 
 
 class DDPM(nn.Module):
     def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
         super().__init__()
-        
         self.denoise = denoise_model
         self.in_channels = color_channels
         self.device = device
-        
+
         # extract fields from config 
         self.image_size = config['image_size']
         self.timesteps = config['timesteps']
+        
+        # setup shape for sampling
+        self.sample_shape = (self.in_channels, self.image_size, self.image_size)
 
         # define loss computation
         if config['loss_type'] == 'l1':
@@ -40,7 +43,6 @@ class DDPM(nn.Module):
         
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
-        # cosine_beta_schedule(self.timesteps)
         
         # Compute alphas from betas
         alphas = 1. - betas
@@ -80,24 +82,22 @@ class DDPM(nn.Module):
     #     log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_start.shape)
     #     return mean, variance, log_variance
 
+    @torch.no_grad()
     def reconstruct(self, x):
         """Reconstructs x_hat from x"""
-        
-        # extract shape from x
-        shape = x.shape
-        b = shape[0]
-        
-        # set t=T for each x
-        t_T = torch.full((b,), self.timesteps-1, device=self.device, dtype=torch.long)
+        # set t=1 for each x
+        t_1 = torch.full((x.shape[0],), 1, device=self.device, dtype=torch.long)
         
         # generate some random noise
-        noise = torch.randn(shape, device=self.device)
+        noise = torch.randn_like(x)
         
-        # sample noisy x from q distribution for the last step T
-        x_T = self.q_sample(x, t_T, noise)
+        # sample noisy x from q distribution for t=1
+        x_1 = self.q_sample(x, t_1, noise)
         
         # return reconstruction
-        x_recon = self.denoise(x_T, t_T)
+        x_eps = self.denoise(x_1, t_1)
+        x_recon = self.predict_start_from_noise(x_1, t_1, x_eps)
+        x_recon = x_recon.clamp(min=0, max=1)
         return x_recon
     
     def predict_start_from_noise(self, x_t, t, noise):
@@ -157,9 +157,9 @@ class DDPM(nn.Module):
         return img
 
     @torch.no_grad()
-    def sample(self, batch_size=16):
-        """Sample a batch"""
-        return self.p_sample_loop((batch_size, self.in_channels, self.image_size, self.image_size))
+    def sample(self, batch_size:int=16):
+        """Sample a batch of images from model."""
+        return self.p_sample_loop((batch_size, *self.sample_shape))
 
     # @torch.no_grad()
     # def interpolate(self, x1, x2, t=None, lam=0.5):
@@ -215,24 +215,63 @@ class DownsampleDDPM(DDPM):
     def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
         super().__init__(config, denoise_model, device, color_channels)
         
-        # number of downsamples
-        n_downsamples = 1
-        self.dim_reduc = np.power(2, n_downsamples)
+        # original image shape
         shape = (self.in_channels, self.image_size, self.image_size)
-        mode = 'deterministic'
+        
+        # latent image shape
+        self.dim_reduc = np.power(2, config['n_downsamples']).astype(int)
+        sample_channels = (
+            self.in_channels * self.dim_reduc 
+            if 'convolutional' in config['mode'] 
+            else self.in_channels
+        )
+        latent_size = int(self.image_size/self.dim_reduc)
+        self.sample_shape = (
+            sample_channels,
+            latent_size,
+            latent_size
+        )
         
         # Instantiate downsample network
-        self.downsample = get_downsampling(mode, shape, self.dim_reduc)
+        self.downsample = get_downsampling(config['mode'], shape, self.dim_reduc)
 
         # Instantiate upsample network
-        self.upsample = get_upsampling(mode, shape, self.dim_reduc)
+        self.upsample = get_upsampling(config['mode'], shape)
+    
+    @torch.no_grad()
+    def reconstruct(self, x):
+        """
+        Reconstructs x_hat from x in downsampled space and upsamples at the end.
+        Method only used for visualization and not for computing gradients etc.
+        """
+        # set t=1 for each x
+        t_1 = torch.full((x.shape[0],), 1, device=self.device, dtype=torch.long)
+        
+        # downsample the input
+        z = self.downsample(x)
+
+        # Generate noise
+        noise_z = torch.randn_like(z)
+        
+        # sample noisy z from q distribution for t=1
+        z_1 = self.q_sample(z, t_1, noise_z)
+        
+        # get model output z_eps for z_1 and get reconstruction
+        z_eps = self.denoise(z_1, t_1)
+        z_recon = self.predict_start_from_noise(z_1, t_1, z_eps)
+        
+        # upsample reconstruction and return
+        print('z_recon:', z_recon.min(), z_recon.max())
+        x_recon = self.upsample(z_recon)
+        print('x_recon:', x_recon.min(), x_recon.max())
+        x_recon = min_max_norm(x_recon)
+        return x_recon
     
     @torch.no_grad()
     def p_sample_loop(self, shape:tuple):
-        # Create random noise in downsampled space
+        # Create random noise in downsampled image space
         img = torch.randn(shape, device=self.device)
-        # img = self.downsample(img)
-        
+                
         # Pass backwards through the DDPM
         for i in reversed(range(0, self.timesteps)):
             img = self.p_sample(img, torch.full((shape[0],), i, device=self.device, dtype=torch.long))
@@ -241,10 +280,11 @@ class DownsampleDDPM(DDPM):
         img = self.upsample(img)
         return img
     
-    @torch.no_grad()
-    def sample(self, batch_size:int=16):
-        img_size = int(self.image_size/self.dim_reduc)
-        return self.p_sample_loop((batch_size, self.channels[1], img_size, img_size))
+    # @torch.no_grad()
+    # def sample(self, batch_size:int=16):
+    #     """Sample a batch in downsampled image space, and upsampling the final result."""
+    #     img_size = int(self.image_size/self.dim_reduc)
+    #     return self.p_sample_loop((batch_size, self.sample_channels, img_size, img_size))
     
     def p_losses(self, x_start:torch.tensor, t:torch.tensor, noise:torch.tensor=None) -> tuple:
         # Instantiate t=1 for each x in the batch
@@ -254,20 +294,22 @@ class DownsampleDDPM(DDPM):
         z_start = self.downsample(x_start)
         
         # Generate noise
-        noise_z = torch.randn_like(z_start)
+        noise_z = default(noise, lambda: torch.randn_like(z_start))
 
         # sample noisy z from q distribution for step t and t=1
         z_t = self.q_sample(z_start, t, noise_z)
         z_1 = self.q_sample(z_start, t_1, noise_z)
         
         # denoise the noisy z at step t and t=1
-        z_recon = self.denoise(z_t, t)
-        z_1_recon = self.denoise(z_1, t_1)
+        z_eps = self.denoise(z_t, t)
+        z_1_eps = self.denoise(z_1, t_1)
         
-        # upsample the reconstructed z at t=1
+        # create reconstrution from model output at t=1 and upsample
+        z_1_recon = self.predict_start_from_noise(z_1, t_1, z_1_eps) #.detach()
         x_1_recon = self.upsample(z_1_recon)
+        x_1_recon = min_max_norm(x_1_recon) # clamp or min-max norm here?
 
         # compute losses
-        loss_latent = self.get_loss(noise_z, z_recon)
+        loss_latent = self.get_loss(noise_z, z_eps)
         loss_recon = self.get_loss(x_start, x_1_recon)
         return (loss_latent, loss_recon)

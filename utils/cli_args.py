@@ -71,8 +71,10 @@ def get_args(config: dict, data_names: list, model_names: list) -> tuple:
     if 'ddpm' in model_names:
         parser.add_argument(
             '-downsample',
-            help='Train DDPM with downsampling.',
-            action='store_true'
+            help='Determine how many downsamples (x2) to perform. When 0, run standard DDPM.',
+            default=0,
+            type=int,
+            dest='n_downsamples',
         )
 
     # Parse the arguments
@@ -85,7 +87,7 @@ def get_args(config: dict, data_names: list, model_names: list) -> tuple:
 
     # remove downsample if model is not ddpm
     if config['model'] != 'ddpm':
-        del config['downsample']
+        del config['n_downsamples']
     
     # leftover args
     args_ = {'n_runs': args.n_runs, 'mute': args.mute}
