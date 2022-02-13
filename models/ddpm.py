@@ -12,11 +12,10 @@ from functools import partial
 
 from .updown_sampling import get_downsampling, \
     get_upsampling
-from .losses import l1_loss, l2_loss
-from .helpers import default, extract, \
-    noise_like, cosine_beta_schedule, \
-    make_beta_schedule
-from utils import min_max_norm
+from .losses import discretized_gaussian_log_likelihood, \
+    l1_loss, l2_loss, normal_kl
+from .helpers import extract, noise_like, \
+    make_beta_schedule, mean_flat_bits
 
 
 class DDPM(nn.Module):
@@ -29,11 +28,15 @@ class DDPM(nn.Module):
         # extract fields from config 
         self.image_size = config['image_size']
         self.timesteps = config['timesteps']
-        
+
         # setup shape for sampling
         self.sample_shape = (self.in_channels, self.image_size, self.image_size)
 
-        # define loss computation
+        # determine whether to clip denoised to range or not
+        self.clip_denoised = True
+        self.clip_range = (0., 1.) if self.in_channels == 1 else (-1., 1.)
+
+        # define loss computationaerwnemt
         if config['loss_type'] == 'l1':
             self.get_loss = l1_loss
         elif config['loss_type'] == 'l2':
@@ -56,96 +59,159 @@ class DDPM(nn.Module):
         self.register_buffer('betas', to_torch(betas))
         self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
         self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
-        
+
         # calculations for diffusion q(x_t | x_{t-1}) and others
         self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
         self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1. - alphas_cumprod)))
         self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1. - alphas_cumprod)))
         self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod)))
         self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod - 1)))
-        
+
         # calculations for posterior q(x_{t-1} | x_t, x_0)
         posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
         # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
         self.register_buffer('posterior_variance', to_torch(posterior_variance))
-        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-        self.register_buffer('posterior_log_variance_clipped', to_torch(np.log(np.maximum(posterior_variance, 1e-20))))
+
+        # log calculation clipped because the posterior variance is 0 at the 
+        # beginning of the diffusion chain
+        self.register_buffer('posterior_log_variance_clipped', to_torch(
+            np.log(np.maximum(posterior_variance, 1e-20))
+        ))
         self.register_buffer('posterior_mean_coef1', to_torch(
-            betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod)))
+            betas 
+            * np.sqrt(alphas_cumprod_prev) 
+            / (1. - alphas_cumprod)
+        ))
         self.register_buffer('posterior_mean_coef2', to_torch(
-            (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
+            (1. - alphas_cumprod_prev) 
+            * np.sqrt(alphas) 
+            / (1. - alphas_cumprod)
+        ))
+
+    def q_mean_variance(self, x_0:torch.tensor, t:torch.tensor):
+        """
+        Get the distribution q(x_t | x_0).
         
-    # def q_mean_variance(self, x_start, t):
-    #     """Compute and return the mean, variance and log(variance) for the q distribution for a specific step t in the diffusion model."""
-    #     mean = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-    #     variance = extract(1. - self.alphas_cumprod, t, x_start.shape)
-    #     log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_start.shape)
-    #     return mean, variance, log_variance
+        Args:
+            x_0 (torch.tensor): The noiseless input (N x C x H x W).
+            t (torch.tensor):   Number of diffusion steps.
+            
+        Returns:
+            A tuple (mean, variance, log_variance) consisting of the mean,
+            variance and log of the variance of the posterior distribution q(x_t | x_0). 
+        """
+        mean = extract(self.sqrt_alphas_cumprod, t, x_0.shape) * x_0
+        variance = extract(1. - self.alphas_cumprod, t, x_0.shape)
+        log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_0.shape)
+        return mean, variance, log_variance
 
     @torch.no_grad()
-    def reconstruct(self, x):
+    def reconstruct(self, x:torch.tensor):
         """Reconstructs x_hat from x"""
         # set t=1 for each x
         t_1 = torch.full((x.shape[0],), 1, device=self.device, dtype=torch.long)
         
         # generate some random noise
         noise = torch.randn_like(x)
-        
+
         # sample noisy x from q distribution for t=1
         x_1 = self.q_sample(x, t_1, noise)
-        
+
         # return reconstruction
         x_eps = self.denoise(x_1, t_1)
-        x_recon = self.predict_start_from_noise(x_1, t_1, x_eps)
-        x_recon = x_recon.clamp(min=0, max=1)
+        x_recon = self.predict_x0_from_eps(x_1, t_1, x_eps)
         return x_recon
-    
-    def predict_start_from_noise(self, x_t, t, noise):
-        """Predicts x_start from x_t"""
-        return (
-            extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
-            extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+
+    def predict_x0_from_eps(self, x_t:torch.tensor, t:torch.tensor, eps:torch.tensor):
+        assert x_t.shape == eps.shape
+        x_0 = (
+            extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
+            - extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * eps
+        )
+        if self.clip_denoised:
+            x_0.clamp_(*self.clip_range)
+        return x_0
+
+    def q_posterior(self, x_0:torch.tensor, x_t:torch.tensor, t:torch.tensor):
+        """
+        Compute the mean and variance of the diffusion postertior:
+            q(x_{t-1} | x_t, x_0)
+
+        Args:
+            x_0 (torch.tensor): The x at diffusion step 0
+            x_t (torch.tensor): The x at diffusion step t
+            t (torch.tensor):   The time-step t
+
+        Returns:
+            A tuple (mean, variance, log_variance), that is the mean, variance 
+            and log of the variance of the posterior distribution q(x_{t-1} | x_t, x_0).
+        """
+        assert x_0.shape == x_t.shape
+
+        # compute mean of the posterior q
+        mean = (
+            extract(self.posterior_mean_coef1, t, x_t.shape) * x_0
+            + extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
         )
 
-    def q_posterior(self, x_start, x_t, t):
-        posterior_mean = (
-            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
-            extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
-        )
-        posterior_variance = extract(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
-        return posterior_mean, posterior_variance, posterior_log_variance_clipped
+        # Compute variance and log variance of the posterior
+        variance = extract(self.posterior_variance, t, x_t.shape)
+        log_variance = extract(self.posterior_log_variance_clipped, t, x_t.shape)
+        return mean, variance, log_variance
 
-    def p_mean_variance(self, x, t, clip_denoised: bool):
-        x_recon = self.predict_start_from_noise(x, t=t, noise=self.denoise(x, t))
-
-        if clip_denoised:
-            x_recon.clamp_(-1., 1.)
-
-        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(x_recon, x, t)
-        return model_mean, posterior_variance, posterior_log_variance
+    def p_mean_variance(self, x_t:torch.tensor, t:torch.tensor):
+        """
+        Apply the model to get p(x_{t-1} | x_t).
+        
+        Args:
+            x_t (torch.tensor):  The (N x C x H x W) tensor at time t.
+            t (torch.tensor):  A one-dimensional tensor of timesteps.
+        
+        Returns:
+            A tuple of (mean, variance, log_variance) of the distribution p(x_{t-1} | x_t).
+        """
+        x_eps = self.denoise(x_t, t)
+        x_recon = self.predict_x0_from_eps(x_t, t, x_eps)
+        mean, variance, log_variance = self.q_posterior(x_recon, x_t, t)
+        return mean, variance, log_variance
 
     @torch.no_grad()
-    def p_sample(self, x, t, clip_denoised=True, repeat_noise=False):
+    def p_sample(self, x_t:torch.tensor, t:torch.tensor, repeat_noise:bool=False):
+        """
+        Sample x_{t-1} from the model from the given timestep t.
+
+        Args:
+            x_t (torch.tensor): The current tensor at timestep t.
+            t (torch.tensor):   The step value
+
+        Returns:
+            torch.tensor: A random sample from the model.
+        """
 
         # Get mean and log variance of the model
-        model_mean, _, model_log_variance = self.p_mean_variance(x, t, clip_denoised)
+        mean, _, log_variance = self.p_mean_variance(x_t, t)
         
         # generate noise
-        noise = noise_like(x.shape, self.device, repeat_noise)
+        noise = noise_like(x_t.shape, self.device, repeat_noise)
         
         # no noise when t == 0
-        batch_size = x.shape[0]
-        nonzero_mask = (1 - (t == 0).float()).reshape(batch_size, *((1,) * (len(x.shape) - 1)))
+        batch_size = x_t.shape[0]
+        nonzero_mask = (1 - (t == 0).float()).reshape(batch_size, *((1,) * (len(x_t.shape) - 1)))
         
-        # compute sample from p
-        x_t = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
-        
-        return x_t
+        # compute and return sample from p
+        return mean + nonzero_mask * (0.5 * log_variance).exp() * noise
     
     @torch.no_grad()
-    def p_sample_loop(self, shape):
-        """Generate images by sampling"""
+    def p_sample_loop(self, shape:tuple):
+        """
+        Generate samples from the model.
+        
+        Args:
+            shape (tuple):  The shape of the samples (N x C x H x W)
+            
+        Returns:
+            torch.tensor:   A non-differentiable batch of samples.
+        """
         
         # start with an image of completely random noise
         b = shape[0]
@@ -177,37 +243,142 @@ class DDPM(nn.Module):
 
     #     return img
 
-    def q_sample(self, x_start, t, noise=None):
-        """Samples a noisy x_t given the starting x and a timestep t."""
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
+    def q_sample(self, x_0:torch.tensor, t:torch.tensor, noise:torch.tensor):
+        """
+        Diffuse the data x_0 for a given number of diffusion steps t.
+        This is done by sampling from q(x_t | x_0)
+        
+        Args:
+            x_0:    The initial data batch (N x C x H x W).
+            t:      The number of diffusion steps minus one (0 means one step).
+            noise:  Random gaussian noise of same shape as x_0.
+        
+        Returns:
+            A noisy version of x_0.
+        """
+        assert x_0.shape == noise.shape
         return (
-            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
-            extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            extract(self.sqrt_alphas_cumprod, t, x_0.shape) * x_0 
+            + extract(self.sqrt_one_minus_alphas_cumprod, t, x_0.shape) * noise
         )
 
-    def p_losses(self, x_start, t, noise=None):
+    def p_losses(self, x_0:torch.tensor, t:torch.tensor):
+        """
+        Compute training losses for a single timestep t.
+
+        Args:
+            x_0 (torch.tensor): The input data of shape (N x C x H x W).
+            t (torch.tensor):   A batch of timestep indicies.
+
+        Returns:
+            The loss of the model for the input data using t diffusion steps.
+        """
         
         # Generate noise
-        noise = default(noise, lambda: torch.randn_like(x_start))
+        # noise = default(noise, lambda: torch.randn_like(x_0))
+        noise = torch.randn_like(x_0)
 
         # sample noisy x from q distribution for step t
-        x_t = self.q_sample(x_start, t, noise)
-        
-        # denoise the noisy x at step t
-        x_recon = self.denoise(x_t, t)
+        x_t = self.q_sample(x_0, t, noise)
 
-        # compute loss
-        loss = self.get_loss(noise, x_recon)
+        # get the model output for diffusion step t
+        x_eps = self.denoise(x_t, t)
 
+        # compute simple loss of diffusion step t
+        loss = self.get_loss(noise, x_eps)
         return loss
+    
+    def vb_terms_bpd(self, x_0:torch.tensor, x_t:torch.tensor, t:torch.tensor):
+        """
+        Get a term for the variational lower-bound.
+        Resulting units are bits instead of nats.
 
-    def forward(self, x, *args, **kwargs):
+        Args:
+            x_0 (torch.tensor): The input data of shape (N x C x H x W).
+            x_t (torch.tensor): The noisy version of the input after 
+                                t number of diffusion steps.
+            t (torch.tensor):   A batch of timestep indicies.
+        
+        Returns:
+            A shape (N) tensor of negative log-likelihoods of unit bits.
+        """
+
+        # compute true and predicted means and log variances
+        true_mean, _, true_log_var = self.q_posterior(x_0, x_t, t)
+        pred_mean, _, pred_log_var = self.p_mean_variance(x_t, t)
+
+        # compute kl in bits
+        kl = normal_kl(true_mean, true_log_var, pred_mean, pred_log_var)
+        kl = mean_flat_bits(kl)
+
+        # compute negative log-likelihood
+        nll = -discretized_gaussian_log_likelihood(
+            x_0, means=pred_mean, log_scales=0.5*pred_log_var
+        )
+        nll = mean_flat_bits(nll)
+
+        # For the first timestep return NLL, 
+        # otherwise return KL(q(x_{t-1} | x_t, x_0) || p(x_{t-1} | x_t))
+        return torch.where((t == 0), nll, kl)
+
+    @torch.no_grad()
+    def prior_bpd(self, x_0:torch.tensor):
+        """
+        Calculate the prior KL term for the VLB measured in bits/dim.
+        
+        Args:
+            x_0 (torch.tensor): The (N x C x H x W) input tensor.
+        
+        Returns:
+            A batch of (N) KL values, one for each batch element.
+        """
+        # define t=T for each x in batch
+        t = torch.tensor([self.timesteps-1] * x_0.shape[0], device=self.device)
+        
+        # compute mean and log variance of q distribution
+        mean, _, log_var = self.q_mean_variance(x_0, t)
+        
+        # compute prior KL
+        kl_prior = normal_kl(mean, log_var, 0., 0.)
+        return mean_flat_bits(kl_prior)
+
+    @torch.no_grad()
+    def calc_bpd(self, x_0:torch.tensor):
+        """
+        Computes the entire variational lower-bound, measured in bits/dim.
+        Reference: https://github.com/openai/improved-diffusion/blob/783b6740edb79fdb7d063250db2c51cc9545dcd1/improved_diffusion/gaussian_diffusion.py#L770
+        
+        Args:
+            x_0 (torch.tensor): The (N x C x H x W) input tensor.
+            
+        Returns:
+            The total VLB per batch element.
+        """
+        
+        batch_size = x_0.shape[0]
+        
+        # compute variational lower bound
+        vlb = []
+        for t in list(range(self.timesteps))[::-1]:
+            t_batch = torch.tensor([t] * batch_size, device=self.device)
+            noise = torch.randn_like(x_0)
+            x_t = self.q_sample(x_0, t_batch, noise)
+            
+            # calculate vlb for timestep t
+            with torch.no_grad():
+                vlb_ = self.vb_terms_bpd(x_0, x_t, t)
+            vlb.append(vlb_)
+        vlb = torch.stack(vlb, dim=1)
+        prior_bpd = self.prior_bpd(x_0)
+        total_bpd = vlb.sum(dim=1) + prior_bpd
+        return total_bpd
+
+    def forward(self, x:torch.tensor): #, *args, **kwargs
         # select a random timestep t for each x in batch        
         t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
         
         # denoise x at timestep t, and compute loss
-        loss = self.p_losses(x, t, *args, **kwargs)
+        loss = self.p_losses(x, t) # , *args, **kwargs
         return loss
 
 
@@ -225,21 +396,17 @@ class DownsampleDDPM(DDPM):
             if 'convolutional' in config['mode'] 
             else self.in_channels
         )
-        latent_size = int(self.image_size/self.dim_reduc)
-        self.sample_shape = (
-            sample_channels,
-            latent_size,
-            latent_size
-        )
+        z_size = int(self.image_size/self.dim_reduc)
+        self.sample_shape = (sample_channels, z_size, z_size)
         
         # Instantiate downsample network
         self.downsample = get_downsampling(config['mode'], shape, self.dim_reduc)
 
         # Instantiate upsample network
         self.upsample = get_upsampling(config['mode'], shape)
-    
+
     @torch.no_grad()
-    def reconstruct(self, x):
+    def reconstruct(self, x:torch.tensor) -> torch.tensor:
         """
         Reconstructs x_hat from x in downsampled space and upsamples at the end.
         Method only used for visualization and not for computing gradients etc.
@@ -258,17 +425,14 @@ class DownsampleDDPM(DDPM):
         
         # get model output z_eps for z_1 and get reconstruction
         z_eps = self.denoise(z_1, t_1)
-        z_recon = self.predict_start_from_noise(z_1, t_1, z_eps)
+        z_recon = self.predict_x0_from_eps(z_1, t_1, z_eps)
         
         # upsample reconstruction and return
-        print('z_recon:', z_recon.min(), z_recon.max())
         x_recon = self.upsample(z_recon)
-        print('x_recon:', x_recon.min(), x_recon.max())
-        x_recon = min_max_norm(x_recon)
         return x_recon
-    
+
     @torch.no_grad()
-    def p_sample_loop(self, shape:tuple):
+    def p_sample_loop(self, shape:tuple) -> torch.tensor:
         # Create random noise in downsampled image space
         img = torch.randn(shape, device=self.device)
                 
@@ -279,37 +443,61 @@ class DownsampleDDPM(DDPM):
         # return the upsampled result
         img = self.upsample(img)
         return img
-    
-    # @torch.no_grad()
-    # def sample(self, batch_size:int=16):
-    #     """Sample a batch in downsampled image space, and upsampling the final result."""
-    #     img_size = int(self.image_size/self.dim_reduc)
-    #     return self.p_sample_loop((batch_size, self.sample_channels, img_size, img_size))
-    
-    def p_losses(self, x_start:torch.tensor, t:torch.tensor, noise:torch.tensor=None) -> tuple:
+
+    def p_losses(self, x_0:torch.tensor, t:torch.tensor) -> tuple:
         # Instantiate t=1 for each x in the batch
-        t_1 = torch.ones((x_start.shape[0],), device=self.device).long()
-        
+        # t_1 = torch.ones((x_0.shape[0],), device=self.device).long()
+
         # downsample the input
-        z_start = self.downsample(x_start)
-        
+        z_start = self.downsample(x_0)
+
         # Generate noise
-        noise_z = default(noise, lambda: torch.randn_like(z_start))
+        # noise_z = default(noise, lambda: torch.randn_like(z_start))
+        noise_z = torch.randn_like(z_start)
 
         # sample noisy z from q distribution for step t and t=1
         z_t = self.q_sample(z_start, t, noise_z)
-        z_1 = self.q_sample(z_start, t_1, noise_z)
-        
+        # z_1 = self.q_sample(z_start, t_1, noise_z)
+
         # denoise the noisy z at step t and t=1
         z_eps = self.denoise(z_t, t)
-        z_1_eps = self.denoise(z_1, t_1)
-        
+        # z_1_eps = self.denoise(z_1, t_1)
+
         # create reconstrution from model output at t=1 and upsample
-        z_1_recon = self.predict_start_from_noise(z_1, t_1, z_1_eps) #.detach()
-        x_1_recon = self.upsample(z_1_recon)
-        x_1_recon = min_max_norm(x_1_recon) # clamp or min-max norm here?
+        # z_recon = self.predict_x0_from_eps(z_1, t_1, z_1_eps) #.detach()
+        z_recon = self.predict_x0_from_eps(z_t, t, z_eps)
+        x_recon = self.upsample(z_recon)
 
         # compute losses
         loss_latent = self.get_loss(noise_z, z_eps)
-        loss_recon = self.get_loss(x_start, x_1_recon)
+        loss_recon = self.get_loss(x_0, x_recon)
         return (loss_latent, loss_recon)
+
+    # def p_losses_ae(self, x_0:torch.tensor, t:torch.tensor) -> tuple:
+    #     # downsample the input
+    #     z_0 = self.downsample(x_0)
+
+    #     # Generate noise
+    #     noise_z = torch.randn_like(z_0)
+
+    #     # sample noisy z from q distribution for step t and t=1
+    #     z_t = self.q_sample(z_0, t, noise_z)
+
+    #     # denoise the noisy z at step t and t=1
+    #     z_eps = self.denoise(z_t, t)
+
+    #     # upsample the latent
+    #     x_recon = self.upsample(z_0)
+
+    #     # compute losses
+    #     loss_latent = self.get_loss(noise_z, z_eps)
+    #     loss_recon = self.get_loss(x_0, x_recon)
+    #     return (loss_latent, loss_recon)
+
+    # def forward(self, x:torch.tensor): #, *args, **kwargs
+    #     # select a random timestep t for each x in batch        
+    #     t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
+        
+    #     # denoise x at timestep t, and compute loss
+    #     loss = self.p_losses_ae(x, t) # , *args, **kwargs
+    #     return loss
