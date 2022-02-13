@@ -94,6 +94,15 @@ class TrainerDDPM(Trainer):
         # generate samples and reconstructions
         samples = self.sample() if self.log_sample else None
         recon = self.recon(x) if self.log_recon else None
+        
+        # print min, max for samples and recon
+        # perform minmax norm on both
+        if self.log_sample:
+            print('sample:', samples.min(), samples.max())
+            samples = min_max_norm(samples)
+        if self.log_recon:
+            print('recon:', recon.min(), recon.max())
+            recon = min_max_norm(recon)
 
         # log images to wandb
         step = self.step // self.save_and_sample_every
@@ -121,6 +130,7 @@ class TrainerDDPM(Trainer):
         losses = []
         while self.step < self.n_steps:
             train_loss = []
+            self.model.train()
             for _ in range(self.gradient_accumulate_every):
                 # retrieve a batch and port to device
                 x, _ = next(self.train_loader)
@@ -136,10 +146,6 @@ class TrainerDDPM(Trainer):
                 # save loss
                 train_loss.append(loss.item())
 
-            # store losses
-            loss_ = np.mean(train_loss)
-            losses.append(loss_)
-
             # update gradients
             self.opt.step()
             self.opt.zero_grad()
@@ -147,6 +153,12 @@ class TrainerDDPM(Trainer):
             # update EMA
             if self.step % self.update_ema_every == 0:
                 self.step_ema()
+
+            self.model.eval()
+            
+            # store losses
+            loss_ = np.mean(train_loss)
+            losses.append(loss_)
 
             # log stuff to wandb
             is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
