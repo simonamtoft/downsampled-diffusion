@@ -2,10 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from operator import mul
-from functools import reduce, partial
+from functools import partial
 
 DEFAULT_INTERPOLATE_MODE = 'bicubic'
+
+# default padding mode for 3-by-3 convolutions with padding
+# options: zeros, reflect, replicate, circular
+DEFAULT_PADDING_MODE = 'zeros'
 
 
 def get_interpolate(size:tuple, mode:str, align:bool=True):
@@ -28,12 +31,42 @@ def get_interpolate(size:tuple, mode:str, align:bool=True):
     )
 
 
+def get_3x3(in_dim:int, out_dim:int, stride:int=1, padding:int=1, padding_mode:str=None):
+    """Wrapper function to get_conv a 3-by-3 convolution."""
+    pad_mode = DEFAULT_PADDING_MODE if padding_mode is None else padding_mode
+    return nn.Conv2d(
+        in_dim, out_dim, 
+        kernel_size=3, 
+        stride=stride, 
+        padding=padding, 
+        padding_mode=pad_mode
+    )
+
+
+def get_1x1(in_dim:int, out_dim:int):
+    """Wrapper function to get_conv a 1-by-1 convolution."""
+    return nn.Conv2d(
+        in_dim, out_dim, 
+        kernel_size=1, 
+        stride=1, 
+        padding=0,
+    )
+
+
+def get_4x4_transpose(in_dim:int, out_dim:int, stride:int=2, padding:int=1):
+    """Wrapper function to get_conv a 4-by-4 transpose convolution."""
+    return nn.ConvTranspose2d(
+        in_dim, out_dim, 
+        kernel_size=4, 
+        stride=stride, 
+        padding=padding
+    )
+
+
 class SimpleDownConv(nn.Module):
-    def __init__(self, channels:int):
+    def __init__(self, channels:int, padding_mode:str=None):
         super().__init__()
-        unet_vars = [2, 2, 0]   # kernel_size, stride, padding for standard U-Net
-        ddpm_vars = [3, 2, 1]   # kernel_size, stride, padding for U-Net in DDPM
-        self.conv = nn.Conv2d(channels, channels*2, *ddpm_vars)
+        self.conv = get_3x3(channels, channels*2, stride=2, padding_mode=padding_mode)
 
     def forward(self, x):
         return self.conv(x)
@@ -42,21 +75,19 @@ class SimpleDownConv(nn.Module):
 class SimpleUpConv(nn.Module):
     def __init__(self, channels:int):
         super().__init__()
-        self.conv = nn.ConvTranspose2d(channels*2, channels, 4, 2, 1)
+        self.conv = get_4x4_transpose(channels*2, channels)
 
     def forward(self, x):
         return self.conv(x)
 
 
 class SimpleDownConvPlus(nn.Module):
-    def __init__(self, channels:int):
+    def __init__(self, channels:int, padding_mode:str=None):
         super().__init__()
-        unet_vars = [2, 2, 0]   # kernel_size, stride, padding for standard U-Net
-        ddpm_vars = [3, 2, 1]   # kernel_size, stride, padding for U-Net in DDPM
         self.conv = nn.Sequential(
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels*2, *ddpm_vars),
+            get_3x3(channels, channels*2, stride=2, padding_mode=padding_mode)
         )
 
     def forward(self, x):
@@ -64,13 +95,13 @@ class SimpleDownConvPlus(nn.Module):
 
 
 class SimpleUpConvPlus(nn.Module):
-    def __init__(self, channels:int):
+    def __init__(self, channels:int, padding_mode:str=None):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.ConvTranspose2d(channels*2, channels, 4, 2, 1),
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_4x4_transpose(channels*2, channels),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels, 1, padding=0),
+            get_1x1(channels, channels)
         )
 
     def forward(self, x):
@@ -78,14 +109,14 @@ class SimpleUpConvPlus(nn.Module):
 
 
 class UnetDownConv(nn.Module):
-    def __init__(self, channels:int):
+    def __init__(self, channels:int, padding_mode:str=None):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels*2, 2, 2, 0)
+            get_3x3(channels, channels*2, stride=2, padding_mode=padding_mode)
         )
 
     def forward(self, x):
@@ -93,92 +124,49 @@ class UnetDownConv(nn.Module):
 
 
 class UnetUpConv(nn.Module):
-    def __init__(self, channels:int):
+    def __init__(self, channels:int, padding_mode:str=None):
         super().__init__()
         self.conv = nn.Sequential(
-            nn.ConvTranspose2d(channels*2, channels, 4, 2, 1),
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_4x4_transpose(channels*2, channels),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels, 3, padding=1),
+            get_3x3(channels, channels, padding_mode=padding_mode),
             nn.ReLU(),
-            nn.Conv2d(channels, channels, 1, padding=0),
+            get_1x1(channels, channels)
         )
 
     def forward(self, x):
         return self.conv(x)
 
 
-class AEDown(nn.Module):
-    def __init__(self, shape_in:tuple):
-        """
-        Autoencoder Downsampling Module
-        Reference: https://kharshit.github.io/blog/2019/02/15/autoencoder-downsampling-and-upsampling
-        
-        Args:
-            shape_in (tuple):   Shape of input image before downsampling.
-                                Should consist of (C x H x W), where H and W will 
-                                be halved after downsampling.
-        """
+class ConvResBlock(nn.Module):
+    def __init__(self, in_channels:int, middle_channels:int, out_channels:int, down_rate:bool=False, up_rate:bool=False, dropout:bool=False):
         super().__init__()
-        assert len(shape_in) == 3
+        self.down_rate = down_rate
+        self.up_rate = up_rate
+        self.dropout = dropout
         
-        # define output shape
-        self.shape_out = (shape_in[0], int(shape_in[1]/2), int(shape_in[2]/2))
+        self.c1 = get_1x1(in_channels, middle_channels)
+        self.c2 = get_3x3(middle_channels, middle_channels)
+        self.c3 = get_3x3(middle_channels, middle_channels)
+        self.c4 = get_1x1(middle_channels, out_channels)
         
-        # compute input and output dimensionality
-        self.dim_in = reduce(mul, shape_in, 1)
-        dim_out = reduce(mul, self.shape_out, 1)
-        
-        # instantiate encoder
-        self.encoder = nn.Linear(self.dim_in, dim_out)
-    
+        if dropout:
+            self.drop = nn.Dropout2d(p=0.1)
+
     def forward(self, x):
-        # flatten original image input
-        x = x.reshape(-1, self.dim_in)
-        
-        # convert to latent space
-        z = self.encoder(x)
-        z = F.relu(z)
-        
-        # return latent with image shape
-        return z.reshape(-1, *self.shape_out)
+        x_hat = self.c1(F.gelu(x))
+        x_hat = self.c2(F.gelu(x_hat))
+        x_hat = self.c3(F.gelu(x_hat))
+        x_hat = self.c4(F.gelu(x_hat))
+        if self.dropout:
+            x_hat = self.drop(x_hat)
 
-
-class AEUp(nn.Module):
-    def __init__(self, shape_out:tuple):
-        """
-        Autoencoder Upsampling Module
-        Reference: https://kharshit.github.io/blog/2019/02/15/autoencoder-downsampling-and-upsampling
-        
-        Args:
-            shape_out (tuple):  The resulting output image shape after upsampling.
-                                Should consist of (C x H x W), where H and W is half
-                                before upsampling.
-        """
-        super().__init__()
-        assert len(shape_out) == 3
-        
-        # define output shape
-        self.shape_out = shape_out
-        shape_in = (shape_out[0], int(shape_out[1]/2), int(shape_out[2]/2))
-        
-        # compute input and output dimensionality
-        self.dim_in = reduce(mul, shape_in, 1)
-        dim_out = reduce(mul, self.shape_out, 1)
-        
-        # instantiate decoder
-        self.decoder = nn.Linear(self.dim_in, dim_out)
-    
-    def forward(self, z):
-        # flatten latent space input
-        z = z.reshape(-1, self.dim_in)
-        
-        # convert to original image space
-        x_hat = self.decoder(z)
-        x_hat = torch.sigmoid(x_hat)
-        
-        # return image with image shape
-        return x_hat.reshape(-1, *self.shape_out)
+        if self.down_rate:
+            out = F.avg_pool2d(out, kernel_size=2, stride=2)
+        if self.up_rate:
+            out = F.interpolate(out, scale_factor=2)
+        return out
 
 
 def get_upsampling(mode:str, shape:tuple, interpolate_mode:str=None):
@@ -206,8 +194,11 @@ def get_upsampling(mode:str, shape:tuple, interpolate_mode:str=None):
         return SimpleUpConvPlus(in_channels)
     elif mode == 'convolutional_unet':
         return UnetUpConv(in_channels)
-    elif mode == 'autoencoder':
-        return AEUp(shape)
+    elif mode == 'convolutional_res':
+        chans = [in_channels, in_channels, int(in_channels/2)]
+        return ConvResBlock(*chans, up_rate=True)
+    # elif mode == 'autoencoder':
+    #     return AEUp(shape)
     else:
         raise NotImplementedError(f'Upsampling method for "{mode}" not implemented!')
 
@@ -241,7 +232,10 @@ def get_downsampling(mode:str, shape:tuple, scale:int=None, interpolate_mode:str
         return SimpleDownConvPlus(in_channels)
     elif mode == 'convolutional_unet':
         return UnetDownConv(in_channels)
-    elif mode == 'autoencoder':
-        return AEDown(shape)
+    elif mode == 'convolutional_res':
+        chans = [in_channels, in_channels*2, in_channels*2]
+        return ConvResBlock(*chans, down_rate=True)
+    # elif mode == 'autoencoder':
+    #     return AEDown(shape)
     else:
         raise NotImplementedError(f'Downsampling method for "{mode}" not implemented!')

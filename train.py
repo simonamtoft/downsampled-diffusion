@@ -101,12 +101,17 @@ def get_trainer(config:dict, mute:bool):
             #   convolutional_plus
             #   convolutional_unet
             #   autoencoder
-            config['mode'] = 'autoencoder'
+            config['mode'] = 'convolutional'
+            
+            # set padding mode for convolutional down-up sampling
+            # options: zeros, reflect, replicate, circular
+            pad_mode = 'replicate'
             
             # instantiate latent model
             unet_in = color_channels
             if 'convolutional' in config['mode']:
                 unet_in *= np.power(2, config['n_downsamples']).astype(int)
+                config['padding_mode'] = pad_mode
             latent_model = Unet(
                 dim=config['unet_chan'],
                 in_channels=unet_in,
