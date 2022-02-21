@@ -1,6 +1,7 @@
 import os
 import torch
 import json
+import random
 import numpy as np
 from functools import reduce
 from operator import mul
@@ -10,7 +11,8 @@ from utils import get_dataloader, get_color_channels, \
 from trainers import TrainerDDPM, TrainerDownsampleDDPM, \
     TrainerDRAW, TrainerVAE
 from models import MODEL_NAMES, Unet, DDPM, DownsampleDDPM, \
-    DRAW, VariationalAutoencoder, LadderVariationalAutoencoder
+    DRAW, VariationalAutoencoder, LadderVariationalAutoencoder, \
+    DownsampleDDPMAutoencoder
 
 # setup path to data root
 DATA_ROOT = '../data/'
@@ -28,9 +30,11 @@ CONFIG_MODEL = {
     'ddpm': {
         'lr': 2e-5,
         'unet_chan': 64,
-        'unet_dims': (1, 2, 4, 8),
-        'timesteps': 1000,
-        'loss_type': 'l2',
+        'unet_dims': (1, 2, 4), #, 8
+        'T': 1000,
+        # simple, vlb, hybrid
+        'loss_type': 'simple',
+        # linear, cosine, sqrt_linear, sqrt
         'beta_schedule': 'cosine',
     },
     # for mnist
@@ -85,7 +89,7 @@ def get_trainer(config:dict, mute:bool):
     
     # instantiate model and trainer for specified model and dataset
     if config['model'] == 'ddpm':
-        if config['n_downsamples'] == 0:
+        if config['n_downsamples'] == 0:          
             latent_model = Unet(
                 dim=config['unet_chan'],
                 in_channels=color_channels,
@@ -100,12 +104,16 @@ def get_trainer(config:dict, mute:bool):
             #   convolutional
             #   convolutional_plus
             #   convolutional_unet
-            #   autoencoder
             config['mode'] = 'convolutional'
             
             # set padding mode for convolutional down-up sampling
             # options: zeros, reflect, replicate, circular
-            pad_mode = 'replicate'
+            pad_mode = 'zeros'
+            
+            # define loss mode
+            # if true, recon loss is computed directly by
+            # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
+            config['ae_loss'] = False
             
             # instantiate latent model
             unet_in = color_channels
@@ -119,7 +127,10 @@ def get_trainer(config:dict, mute:bool):
             )
             
             # instantiate DDPM
-            model = DownsampleDDPM(config, latent_model, device, color_channels)
+            if config['ae_loss']:
+                model = DownsampleDDPMAutoencoder(config, latent_model, device, color_channels)
+            else:
+                model = DownsampleDDPM(config, latent_model, device, color_channels)
             trainer = TrainerDownsampleDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
     elif config['model'] == 'draw':
         model = DRAW(config, x_dim)
@@ -135,7 +146,21 @@ def get_trainer(config:dict, mute:bool):
     return trainer
 
 
+def seed_everything(seed:int) -> None:
+    """Sets the random seed for all the different random calculations."""
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+
+
 if __name__ == '__main__':
+    # fix seed
+    seed_everything(0)
+    
     # Get CLI arguments
     config, args = get_args(CONFIG, DATASETS, MODEL_NAMES)
     

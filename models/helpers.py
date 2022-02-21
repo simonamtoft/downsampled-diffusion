@@ -6,6 +6,16 @@ def exists(x):
     return x is not None
 
 
+def get_identity_like(x) -> torch.tensor:
+    """Return Identity matrix matching x of shape (N x C x H x W)"""
+    shape = x.shape
+    return (
+        torch.eye(shape[-1], device=x.device, dtype=x.dtype)
+        .repeat(shape[1], 1, 1)
+        .repeat(shape[0], 1, 1, 1)
+    )
+
+
 def default(val, d):
     if exists(val):
         return val
