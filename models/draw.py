@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.distributions import Normal
 from torch.distributions.kl import kl_divergence
 
+
 class BaseAttention(nn.Module):
     """Base attention module. Has a linear layer for writing."""
     def __init__(self, h_dim, x_dim):
