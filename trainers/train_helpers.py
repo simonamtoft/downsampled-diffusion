@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from torchvision import utils
 
 
-def compute_bits_dim(nats, x_dim:int):
+def compute_bits_dim(nats:torch.Tensor, x_dim:int):
     """Compute the bits/dim from nats"""
     nats_dim = nats / x_dim
     bits_dim = nats_dim / np.log(2)
@@ -32,7 +32,7 @@ def cycle(dl):
             yield data
 
 
-def num_to_groups(num, divisor):
+def num_to_groups(num:int, divisor:int):
     groups = num // divisor
     remainder = num % divisor
     arr = [divisor] * groups
@@ -68,17 +68,17 @@ class DeterministicWarmup(object):
         return self.t
 
 
-def bce_loss(r, x):
+def bce_loss(r:torch.Tensor, x:torch.Tensor):
     """Binary Cross Entropy Loss"""
     return -torch.sum(x * torch.log(r + 1e-8) + (1 - x) * torch.log(1 - r + 1e-8), dim=-1)
 
 
-def delete_if_exists(path):
+def delete_if_exists(path:str):
     if os.path.exists(path):
         os.remove(path)
 
 
-def log_images(x_recon=None, x_sample=None, folder:str='.', name:str='tmp', nrow:int=None):
+def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None):
     """Log reconstruction and sample images to wandb."""
 
     # instantiate

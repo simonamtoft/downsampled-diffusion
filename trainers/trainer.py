@@ -64,6 +64,7 @@ class Trainer(object):
             os.environ["WANDB_SILENT"] = "true"
         
         # define how to log losses
+        # currently not used for DDPM.
         # if self.n_channels == 1:
         self.loss_handle = nats_mean
         # else:
@@ -78,14 +79,14 @@ class Trainer(object):
         # setup optimizer
         self.opt = Adam(self.model.parameters(), lr=self.lr)      
 
-    def save_losses(self, losses):
+    def save_losses(self, losses:list) -> None:
         """Save loss results to file"""
         filename = f'{self.res_folder}/loss_{self.name}_{self.config["dataset"]}.json'
         print(f'Saving losses to file {filename}')
         with open(filename, 'w') as f:
             json.dump(losses, f)
     
-    def save_model(self, save_path):
+    def save_model(self, save_path:str) -> None:
         """
         Save the state dict of the model.
         https://pytorch.org/tutorials/beginner/saving_loading_models.html
@@ -95,12 +96,12 @@ class Trainer(object):
         }
         torch.save(save_data, save_path)
 
-    def load_model(self, save_path):
+    def load_model(self, save_path:str) -> None:
         """Load the state dict into the instantiated model."""
         save_data = torch.load(save_path)
         self.model.load_state_dict(save_data['model'])
 
-    def finalize(self):
+    def finalize(self) -> None:
         """Finalize training by saving the model to wandb and finishing the wandb run."""
         save_path = f'{self.res_folder}/model_{self.name}.pt'
         self.save_model(save_path)

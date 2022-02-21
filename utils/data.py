@@ -11,12 +11,12 @@ DATA_ROOT = './data/'
 DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot']
 
 
-def binarize(x):
+def binarize(x:torch.Tensor) -> torch.Tensor:
     """Used as lambda function to binarize data x"""
     return torch.bernoulli(x)
 
 
-def inv_binarize(x):
+def inv_binarize(x:torch.Tensor) -> torch.Tensor:
     """
     Used as lambda function to binarize data x 
     and reverse black and white
@@ -38,7 +38,7 @@ def download_datasets(data_root:str=DATA_ROOT) -> None:
     print('Finished downloading CIFAR10, CIFAR100, Omniglot & MNIST...')
 
 
-def get_transforms(config:dict):
+def get_transforms(config:dict) -> list:
     """Define transforms to use, based on model and dataset."""
     
     # get dataset and model name from config
@@ -53,16 +53,21 @@ def get_transforms(config:dict):
         ToTensor(),
     ]
     
-    # add binarization for autoencoder models on mnist and omniglot.
-    if model in ['vae', 'draw']:
+    # add binarization for autoencoder models on mnist and omniglot
+    if model in ['vae', 'lvae', 'draw']:
         if dataset == 'mnist':
             data_transform.append(Lambda(binarize))
         elif dataset == 'omniglot':
             data_transform.append(Lambda(inv_binarize))
-    # add flip for ddpm model on datasets such as cifar, celeba etc.
-    elif model == 'ddpm' and dataset not in ['mnist', 'omniglot']:
-        data_transform.append(RandomHorizontalFlip())
-    
+
+    # add transforms for DDPM
+    elif model == 'ddpm':
+        # scale input linearly to [-1, 1]
+        data_transform.append(Lambda(lambda t: (t * 2) - 1))
+        
+        # random flip data
+        if dataset not in ['mnist', 'omniglot']:
+            data_transform.append(RandomHorizontalFlip())
     return data_transform   
 
 
