@@ -69,7 +69,7 @@ def discretized_gaussian_log_likelihood(x:torch.tensor, *, means:torch.tensor, l
     Args:
         x (torch.tensor):           The target images of shape (N x C x H x W). 
                                     It is assumed that this was uint8 values,
-                                    rescaled to the range [-1, 1] or [0, 1].
+                                    rescaled to the range [-1, 1].
         means (torch.tensor):       The Gaussian mean Tensor.
         log_scales (torch.tensor):  The Gaussian log stddev Tensor.
         

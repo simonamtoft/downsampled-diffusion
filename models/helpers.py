@@ -61,15 +61,20 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
     return betas.numpy()
 
 
-def mean_flat_bits(tensor:torch.tensor):
+def flat_bits(tensor:torch.tensor):
     """
     Take the mean over all non-batch dimensions, and scale by log(2).
+    Returns the bits per dim of the input tensor.
     """
-    return mean_flat(tensor) / np.log(2.)
+    tensor = tensor.mean(dim=list(range(1, len(tensor.shape))))
+    return tensor / np.log(2.)
 
 
-def mean_flat(tensor:torch.tensor):
+def flat_nats(tensor:torch.tensor):
     """
-    Take the mean over all non-batch dimensions.
+    Returns the nats value of the input tensor. 
+    Done by summing over all non-batch dimensions.
     """
-    return tensor.mean(dim=list(range(1, len(tensor.shape))))
+    # tensor = tensor.sum(1)
+    # return tensor.mean(dim=list(range(1, len(tensor.shape))))
+    return tensor.sum(dim=list(range(1, len(tensor.shape))))

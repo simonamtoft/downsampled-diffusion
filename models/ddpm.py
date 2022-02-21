@@ -5,7 +5,6 @@ https://github.com/openai/improved-diffusion/blob/e94489283bb876ac1477d5dd7709bb
 https://github.com/CompVis/latent-diffusion/blob/main/ldm/models/diffusion/ddpm.py
 thanks a lot for open-sourcing :) 
 """
-from tkinter import X
 import numpy as np
 import torch
 import torch.nn as nn
@@ -16,7 +15,7 @@ from .updown_sampling import get_downsampling, \
 from .losses import discretized_gaussian_log_likelihood, \
     l1_loss, l2_loss, normal_kl
 from .helpers import extract, noise_like, \
-    make_beta_schedule, mean_flat_bits, \
+    make_beta_schedule, flat_bits, \
     get_identity_like
 
 OBJETIVE_NAMES = ['simple', 'hybrid', 'vlb']
@@ -50,7 +49,7 @@ class DDPM(nn.Module):
         # self.get_loss = l2_loss
         # else:
         #     raise NotImplementedError(f'Loss type {self.L} not implemented for DDPM.')
-        
+
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
         
@@ -93,7 +92,7 @@ class DDPM(nn.Module):
         
         Args:
             x (torch.tensor):   The noiseless input (N x C x H x W).
-            t (torch.tensor):   Number of diffusion steps.
+            t (torch.tensor):   Number of diffusion steps (t=0 is the first step).
             
         Returns:
             A tuple (mean, variance, log_variance) consisting of the mean,
@@ -110,7 +109,7 @@ class DDPM(nn.Module):
         # set t=0 for each x
         t_0 = torch.full((x.shape[0],), 0, device=self.device, dtype=torch.long)
         
-        # generate some random noise
+        # generate Gaussian noise: eps ~ N(0, 1)
         eps = torch.randn_like(x)
 
         # sample noisy x from q distribution for t=0
@@ -140,7 +139,7 @@ class DDPM(nn.Module):
         Args:
             x (torch.tensor):   The noiseless x
             x_t (torch.tensor): The x at diffusion step t
-            t (torch.tensor):   The time-step t
+            t (torch.tensor):   The diffusion step t, where t=0 is the first step.
 
         Returns:
             A tuple (mean, variance, log_variance), that is the mean, variance 
@@ -191,7 +190,7 @@ class DDPM(nn.Module):
         # Get mean and log variance of the model
         mean, _, log_variance = self.p_mean_variance(x_t, t)
         
-        # generate noise
+        # generate Gaussian noise: eps ~ N(0, 1)
         eps = noise_like(x_t.shape, self.device, repeat_noise)
         
         # no noise when t == 0
@@ -289,22 +288,22 @@ class DDPM(nn.Module):
         eps_hat = self.latent_model(x_t, t)
         
         # compute the objective function
-        if self.L == 'simple':
-            obj = l2_loss(eps, eps_hat)
-        elif self.L == 'vlb':
-            obj = self.vlb_terms_bpd(x, x_t, t)
-        elif self.L == 'hybrid':
-            L_simple = l2_loss(eps, eps_hat)
-            L_vlb = self.vlb_terms_bpd(x, x_t, t)
-            obj = L_simple + self.lambda_ * L_vlb
+        obj = l2_loss(eps, eps_hat)
+        # if self.L == 'simple':
+        # elif self.L == 'vlb':
+        #     obj = self.vlb_terms(x, x_t, t)
+        # elif self.L == 'hybrid':
+        #     L_simple = l2_loss(eps, eps_hat)
+        #     L_vlb = self.vlb_terms(x, x_t, t)
+        #     obj = L_simple + self.lambda_ * L_vlb
         return obj
     
-    def vlb_terms_bpd(self, x:torch.tensor, x_t:torch.tensor, t:torch.tensor):
+    def vlb_terms(self, x:torch.tensor, x_t:torch.tensor, t:torch.tensor):
         """
         Get a term for the variational lower-bound except for t=T.     
             L_t = KL( q(x{t-1} | xt, x) || p(x{t-1} | xt) )
             L_0 = -log p(x | x1)
-        Resulting units are bits instead of nats.
+        Resulting units are nats for binary data and bits/dim for color data.
 
         Args:
             x (torch.tensor):   The input data of shape (N x C x H x W).
@@ -313,7 +312,7 @@ class DDPM(nn.Module):
             t (torch.tensor):   A batch of timestep indicies.
         
         Returns:
-            A shape (N) tensor of negative log-likelihoods of unit bits.
+            A shape (N) tensor of negative log-likelihoods.
         """
 
         # compute true and predicted means and log variances
@@ -321,26 +320,27 @@ class DDPM(nn.Module):
         pred_mean, _, pred_log_var = self.p_mean_variance(x_t, t)
 
         # detach means if loss is hybrid
-        # such that vlb only optimizes variances
+        # such that vlb part only optimizes variances
         if self.L == 'hybrid':
             true_mean = true_mean.detach()
             pred_mean = pred_mean.detach()
         
-        # make log variances on matrix form
-        I = get_identity_like(x)
-        true_log_var = true_log_var * I
-        pred_log_var = pred_log_var * I
+        # turn variances to a diagonal matrix
+        # I = get_identity_like(x)
+        # I_1 = get_ones_like(x)
+        # true_log_var = true_log_var * I
+        # pred_log_var = pred_log_var * I
 
         # compute kl in bits/dim
         # KL( q(x{t-1} | xt, x0) || p(x{t-1} | xt) )
         kl = normal_kl(true_mean, true_log_var, pred_mean, pred_log_var)
-        kl = mean_flat_bits(kl)
+        kl = flat_bits(kl)
 
         # compute negative log-likelihood
         nll = -discretized_gaussian_log_likelihood(
             x, means=pred_mean, log_scales=0.5*pred_log_var
         )
-        nll = mean_flat_bits(nll)
+        nll = flat_bits(nll)
 
         # Return the loss where
         #   if t == 0: vlb = L_0 (discrete NLL)
@@ -349,7 +349,7 @@ class DDPM(nn.Module):
         return vlb
 
     @torch.no_grad()
-    def prior_bpd(self, x:torch.tensor):
+    def calc_prior(self, x:torch.tensor):
         """
         Calculate the prior KL term L_T for the VLB measured in bits/dim.
         
@@ -367,13 +367,14 @@ class DDPM(nn.Module):
         
         # compute prior KL
         L_T = normal_kl(mean, log_var, 0., 0.)
-        return mean_flat_bits(L_T)
+        return flat_bits(L_T)
     
     @torch.no_grad()
-    def calc_bpd(self, x:torch.tensor):
+    def calc_vlb(self, x:torch.tensor):
         """
         Computes the entire variational lower-bound for the 
-        entire Markov chain, measured in bits/dim.
+        entire Markov chain, measured in bits/dim for color images 
+        and nats for binary images.
         
         Args:
             x (torch.tensor): The noiseless (N x C x H x W) input tensor.
@@ -392,12 +393,12 @@ class DDPM(nn.Module):
             x_t = self.q_sample(x, t_batch, eps)
             
             # calculate vlb for timestep t
-            vlb_ = self.vlb_terms_bpd(x, x_t, t_batch)
+            vlb_ = self.vlb_terms(x, x_t, t_batch)  # try scalar t instead of t_batch
             vlb.append(vlb_)
         vlb = torch.stack(vlb, dim=1)
-        prior_bpd = self.prior_bpd(x)
-        total_bpd = vlb.sum(dim=1) + prior_bpd
-        return total_bpd
+        prior = self.calc_prior(x)
+        total = vlb.sum(dim=1) + prior
+        return total
 
     def forward(self, x:torch.tensor):
         # select a random timestep t for each x in batch        
@@ -486,11 +487,11 @@ class DownsampleDDPM(DDPM):
 
         # denoise the noisy z at step t
         eps_hat = self.latent_model(z_t, t)
-        eps_hat_1 = self.latent_model(z_0, t_0)
+        eps_hat_0 = self.latent_model(z_0, t_0)
 
         # create reconstrution from model output at step t and upsample
         # z_hat = self.predict_x_from_eps(z_t, t, eps_hat_t)
-        z_hat = self.predict_x_from_eps(z_0, t_0, eps_hat_1)
+        z_hat = self.predict_x_from_eps(z_0, t_0, eps_hat_0)
         x_hat = self.upsample(z_hat)
 
         # compute losses
