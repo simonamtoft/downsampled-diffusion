@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 
-from .autoencoder_helpers import GaussianSample, \
+from .distributions import GaussianSample, \
     log_gaussian, log_standard_gaussian
 
 

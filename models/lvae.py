@@ -3,7 +3,7 @@ from torch.nn import init
 import torch.nn.functional as F
 
 from .vae import Decoder, VariationalAutoencoder
-from .autoencoder_helpers import GaussianSample, \
+from .distributions import GaussianSample, \
     GaussianMerge
 
 
