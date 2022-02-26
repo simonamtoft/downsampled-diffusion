@@ -29,12 +29,16 @@ def download_datasets(data_root:str=DATA_ROOT) -> None:
     # _ = CelebA(DATA_ROOT, download=True)
     print('Downloading CIFAR10')
     _ = CIFAR10(data_root, download=True)
+    _ = CIFAR10(data_root, download=True, train=False)
     print('Downloading CIFAR100')
     _ = CIFAR100(data_root, download=True)
+    _ = CIFAR100(data_root, download=True, train=False)
     print('Downloadning MNIST')
     _ = MNIST(data_root, download=True)
+    _ = MNIST(data_root, download=True, train=False)
     print('Downloadning Omniglot')
     _ = Omniglot(data_root, download=True)
+    _ = Omniglot(data_root, download=True, train=False)
     print('Finished downloading CIFAR10, CIFAR100, Omniglot & MNIST...')
 
 
@@ -109,7 +113,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
 
     # setup CUDA args for DataLoaders
-    kwargs = {'num_workers': 4, 'pin_memory': True} if device == 'cuda' else {}
+    kwargs = {'num_workers': 4, 'pin_memory': True} if 'cuda' in device else {}
     
     # return train and validation DataLoaders
     if train:

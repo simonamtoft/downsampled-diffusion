@@ -8,9 +8,9 @@ def l1_loss(target:torch.tensor, output:torch.tensor) -> torch.tensor:
     return (target - output).abs().mean()
 
 
-def l2_loss(target:torch.tensor, output:torch.tensor) -> torch.tensor:
+def l2_loss(target:torch.tensor, output:torch.tensor, reduction:str='mean') -> torch.tensor:
     """Computes the l2 loss between output and target."""
-    return F.mse_loss(target, output)
+    return F.mse_loss(target, output, reduction=reduction)
 
 
 def normal_kl(mean1:torch.tensor, logvar1:torch.tensor, mean2:torch.tensor, logvar2:torch.tensor) -> torch.tensor:
@@ -19,8 +19,7 @@ def normal_kl(mean1:torch.tensor, logvar1:torch.tensor, mean2:torch.tensor, logv
         D_KL( p1 || p2 ) = log(std2 / std1) + (var1 + (mean1 - mean2)^2) / (2*var2) - 1/2
     Rearranged according to log variances:
         D_KL( p1 || p2 ) = 0.5 * (logvar2 - logvar1 - 1 + exp(logvar1 - logvar2) + (mean1 - mean2)^2 * exp(-logvar2))
-    Shapes are automatically broadcasted, so batches can be compared to
-    scalars, among other use cases.
+    Shapes are automatically broadcasted, so batches can be compared to scalars, among other use cases.
     
     Args:
         mean1 (torch.tensor):   The mean of the first Gaussian distribution.
@@ -75,16 +74,20 @@ def discretized_gaussian_log_likelihood(x:torch.tensor, *, means:torch.tensor, l
         
     Returns
         A tensor of same shape as x of log probabilities (in nats).
+    
+    Reference:
+    Original TensorFlow implementation is done by Jonathan Ho.
+    https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py#L116
     """
-    assert x.shape == means.shape == log_scales.shape
+    assert x.shape == means.shape
     centered_x = x - means
     inv_stdv = torch.exp(-log_scales)
-    plus_in = inv_stdv * (centered_x + 1.0 / 255.0)
+    plus_in = inv_stdv * (centered_x + 1. / 255.)
     cdf_plus = approx_standard_normal_cdf(plus_in)
-    min_in = inv_stdv * (centered_x - 1.0 / 255.0)
+    min_in = inv_stdv * (centered_x - 1. / 255.)
     cdf_min = approx_standard_normal_cdf(min_in)
     log_cdf_plus = torch.log(cdf_plus.clamp(min=1e-12))
-    log_one_minus_cdf_min = torch.log((1.0 - cdf_min).clamp(min=1e-12))
+    log_one_minus_cdf_min = torch.log((1. - cdf_min).clamp(min=1e-12))
     cdf_delta = cdf_plus - cdf_min
     log_probs = torch.where(
         x < -0.999,

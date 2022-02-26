@@ -16,6 +16,11 @@ def get_identity_like(x) -> torch.tensor:
     )
 
 
+def get_ones_like(x:torch.tensor) -> torch.tensor:
+    """Return tensor filled with ones of same shape, device and type as x"""
+    return torch.ones(x.shape, dtype=x.dtype, device=x.device)
+
+
 def default(val, d):
     if exists(val):
         return val

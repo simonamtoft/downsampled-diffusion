@@ -30,7 +30,7 @@ CONFIG_MODEL = {
     'ddpm': {
         'lr': 2e-5,
         'unet_chan': 64,
-        'unet_dims': (1, 2, 4), #, 8
+        'unet_dims': (1, 2, 4, 8), #, 8
         'T': 1000,
         # simple, vlb, hybrid
         'loss_type': 'simple',
@@ -114,6 +114,10 @@ def get_trainer(config:dict, mute:bool):
             # if true, recon loss is computed directly by
             # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
             config['ae_loss'] = False
+            
+            # define which t's to compute reconstruction loss for
+            if not config['ae_loss']:
+                config['t_rec_max'] = 750
             
             # instantiate latent model
             unet_in = color_channels

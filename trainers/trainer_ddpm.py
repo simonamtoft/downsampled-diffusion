@@ -66,6 +66,7 @@ class TrainerDDPM(Trainer):
         save_data = {
             'model': self.model.state_dict(),
             'ema_model': self.ema_model.state_dict(),
+            'config': self.config,
         }
         torch.save(save_data, save_path)
 
@@ -74,6 +75,7 @@ class TrainerDDPM(Trainer):
         save_data = torch.load(save_path)
         self.model.load_state_dict(save_data['model'])
         self.ema_model.load_state_dict(save_data['ema_model'])
+        self.config = save_data['config']
 
     def sample(self) -> torch.Tensor:
         """Generate n_images samples from the model."""
@@ -97,10 +99,10 @@ class TrainerDDPM(Trainer):
         # print min, max for samples and recon
         # perform minmax norm on both
         if self.log_sample:
-            print('sample:', samples.min(), samples.max())
+            # print('sample:', samples.min(), samples.max())
             samples = min_max_norm(samples)
         if self.log_recon:
-            print('recon:', recon.min(), recon.max())
+            # print('recon:', recon.min(), recon.max())
             recon = min_max_norm(recon)
 
         # log images to wandb
@@ -131,19 +133,19 @@ class TrainerDDPM(Trainer):
             train_obj = []
             self.model.train()
             for _ in range(self.gradient_accumulate_every):
-                # retrieve a batch and port to device
+                # retrieve a training batch and port to device
                 x, _ = next(self.train_loader)
                 x = x.to(self.device)
 
                 # perform a model forward pass
-                obj = self.model(x)
+                obj, _ = self.model(x)
 
-                # backward pass
+                # compute gradients
                 objective = obj / self.gradient_accumulate_every
                 objective.backward()
 
                 # save loss
-                train_obj.append(objective.item())
+                train_obj.append(obj.item())
 
             # update gradients
             self.opt.step()
@@ -161,11 +163,6 @@ class TrainerDDPM(Trainer):
                 'train_obj': loss_obj
             }, commit=(not is_milestone))
             if is_milestone:
-                vlb = self.model.calc_bpd(x).mean()
-                wandb.log({
-                    'train_vlb': vlb
-                }, commit=False)
-                
                 self.log_images(x)
 
             # update step
@@ -180,7 +177,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
     def train_loop(self):
         losses = []
         while self.step < self.n_steps:
-            train_loss = []
+            train_obj = []
             train_latent = []
             train_recon = []
             for _ in range(self.gradient_accumulate_every):
@@ -189,20 +186,19 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 x = x.to(self.device)
 
                 # perform a model forward pass
-                loss_latent, loss_recon = self.model(x)
-                loss = loss_latent + loss_recon
+                obj, loss_dict = self.model(x)
 
                 # backward pass
-                objective = loss / self.gradient_accumulate_every
+                objective = obj / self.gradient_accumulate_every
                 objective.backward()
 
-                # save loss
-                train_loss.append(loss.item())
-                train_latent.append(loss_latent.item())
-                train_recon.append(loss_recon.item())
+                # save losses
+                train_obj.append(objective.item())
+                train_latent.append(loss_dict['latent'].item())
+                train_recon.append(loss_dict['recon'].item())
 
             # store losses
-            loss_ = self.loss_handle(train_loss)
+            loss_ = self.loss_handle(train_obj)
             loss_latent_ = self.loss_handle(train_latent)
             loss_recon_ = self.loss_handle(train_recon)
             losses.append(loss_)
@@ -218,7 +214,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             # log stuff to wandb
             is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
             wandb.log({
-                'train_loss': loss_,
+                'train_obj': loss_,
                 'train_latent': loss_latent_,
                 'train_recon': loss_recon_
             }, commit=(not is_milestone))
