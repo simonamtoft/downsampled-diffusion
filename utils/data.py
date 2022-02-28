@@ -1,14 +1,16 @@
+import os
 import torch
 import numpy as np
+from PIL import Image
 from torchvision.transforms import Compose, Resize, \
     CenterCrop, ToTensor, RandomHorizontalFlip, \
-    Normalize, Lambda
+    Normalize, Lambda, PILToTensor
 from torchvision.datasets import CelebA, CIFAR10, \
-    CIFAR100, MNIST, Omniglot
+    CIFAR100, MNIST, Omniglot, DatasetFolder
 from torch.utils.data import DataLoader
 
 DATA_ROOT = './data/'
-DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot']
+DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot', 'celeba_hq']
 
 
 def binarize(x:torch.Tensor) -> torch.Tensor:
@@ -38,7 +40,6 @@ def download_datasets(data_root:str=DATA_ROOT) -> None:
     _ = MNIST(data_root, download=True, train=False)
     print('Downloadning Omniglot')
     _ = Omniglot(data_root, download=True)
-    _ = Omniglot(data_root, download=True, train=False)
     print('Finished downloading CIFAR10, CIFAR100, Omniglot & MNIST...')
 
 
@@ -54,7 +55,7 @@ def get_transforms(config:dict) -> list:
     data_transform = [
         Resize(size),
         CenterCrop(size),
-        ToTensor(),
+        ToTensor()
     ]
     
     # add binarization for autoencoder models on mnist and omniglot
@@ -66,13 +67,22 @@ def get_transforms(config:dict) -> list:
 
     # add transforms for DDPM
     elif model == 'ddpm':
+        # normalize celeba datasets to [0, 1]
+        # if dataset in ['celeba_hq']:
+        #     data_transform.append(Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        
         # scale input linearly to [-1, 1]
         data_transform.append(Lambda(lambda t: (t * 2) - 1))
         
         # random flip data
-        if dataset not in ['mnist', 'omniglot']:
+        if dataset in ['cifar10', 'cifar100']:
             data_transform.append(RandomHorizontalFlip())
+        
     return data_transform   
+
+
+def img_loader(path):
+    return Image.open(path)
 
 
 def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15) -> DataLoader:
@@ -109,6 +119,10 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         data = MNIST(data_root, **data_args)
     elif config['dataset'] == 'omniglot':
         data = Omniglot(data_root, **data_args)
+    elif config['dataset'] == 'celeba_hq':
+        split_ = 'train' if train else 'test'
+        celeba_hq_dir = os.path.join(data_root, 'celeba_hq', split_)
+        data = DatasetFolder(celeba_hq_dir, loader=img_loader, extensions=('jpg'), transform=data_transform)
     else:
         raise Exception(f'Dataset {config["dataset"]} not implemented...')
 
@@ -118,7 +132,11 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     # return train and validation DataLoaders
     if train:
         # define number of samples in train and validation sets
-        split = (len(data) * np.array([1-val_split, val_split])).astype(int)
+        n_images = len(data)
+        split = (n_images * np.array([1-val_split, val_split])).astype(int)
+        if split.sum != n_images:
+            split[1] += 1
+        assert split.sum() == n_images, f'split {split} does not match total {n_images} number of images.'
 
         # split data into train and validation
         train_data, val_data = torch.utils.data.random_split(data, list(split))
@@ -190,6 +208,8 @@ def get_label_map(dataset:str) -> list:
             'wolf', 'woman', 'worm'
         ]
     elif dataset == 'mnist':
-        return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    elif dataset == 'celeba_hq':
+        return ['female', 'male']
     else:
         raise Exception(f'Dataset {dataset} does not have a label map implemented...')
