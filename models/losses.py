@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+from .helpers import get_ones_like
 
 
 def l1_loss(target:torch.tensor, output:torch.tensor) -> torch.tensor:
@@ -54,8 +55,11 @@ def normal_kl(mean1:torch.tensor, logvar1:torch.tensor, mean2:torch.tensor, logv
 
 def approx_standard_normal_cdf(x):
     """
-    A fast approximation of the cumulative distribution function of the
-    standard normal.
+    A fast approximation of the cumulative distribution function of the standard normal.
+    
+    Reference:
+    Original TensorFlow implementation is done by Jonathan Ho.
+    https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py#L112
     """
     return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
@@ -69,8 +73,9 @@ def discretized_gaussian_log_likelihood(x:torch.tensor, *, means:torch.tensor, l
         x (torch.tensor):           The target images of shape (N x C x H x W). 
                                     It is assumed that this was uint8 values,
                                     rescaled to the range [-1, 1].
-        means (torch.tensor):       The Gaussian mean Tensor.
-        log_scales (torch.tensor):  The Gaussian log stddev Tensor.
+        means (torch.tensor):       The Gaussian mean Tensor of shape (N x C x H x W).
+        log_scales (torch.tensor):  The Gaussian log stddev Tensor of shape (N x C x H x W)
+                                    or a single value for each batch (N x 1 x 1 x 1).
         
     Returns
         A tensor of same shape as x of log probabilities (in nats).
@@ -79,7 +84,13 @@ def discretized_gaussian_log_likelihood(x:torch.tensor, *, means:torch.tensor, l
     Original TensorFlow implementation is done by Jonathan Ho.
     https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py#L116
     """
-    assert x.shape == means.shape
+    # match shape of log_scales if on shape (N x 1 x 1 x 1)
+    if list(log_scales.shape) == [x.shape[0], 1, 1, 1]:
+        log_scales = log_scales * get_ones_like(x)
+    assert x.shape == means.shape == log_scales.shape
+    
+    # compute discretized log-likelihood of Gaussian distribution
+    # given by means and log_scales
     centered_x = x - means
     inv_stdv = torch.exp(-log_scales)
     plus_in = inv_stdv * (centered_x + 1. / 255.)

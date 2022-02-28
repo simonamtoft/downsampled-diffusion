@@ -14,9 +14,8 @@ from .updown_sampling import get_downsampling, \
     get_upsampling
 from .losses import discretized_gaussian_log_likelihood, \
     l1_loss, l2_loss, normal_kl
-from .helpers import extract, noise_like, \
-    make_beta_schedule, flat_bits, \
-    get_identity_like, get_ones_like
+from .helpers import extract, flat_nats, noise_like, \
+    make_beta_schedule, flat_bits
 
 OBJETIVE_NAMES = ['simple', 'hybrid', 'vlb']
 
@@ -46,6 +45,16 @@ class DDPM(nn.Module):
         
         # compute loss as L2 (MSE)
         self.get_loss = partial(l2_loss, reduction='none')  # don't take mean
+        
+        # determine how to flatten
+        #   color images:   Flatten for bits/dim
+        #   binary images:  Flatten for nats
+        if self.in_channels == 3:
+            self.flat_loss = flat_bits
+        elif self.in_channels == 1:
+            self.flat_loss = flat_nats
+        else:
+            raise ValueError(f'DDPM not implemented for {self.in_channels} color channels.')
 
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
@@ -54,9 +63,11 @@ class DDPM(nn.Module):
         alphas = 1. - betas                                         # alpha_t
         alphas_cumprod = np.cumprod(alphas, axis=0)                 # alpha_bar_t
         alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])    # alpha_bar_{t-1}
+        # alphas_cumprod_prev = np.append(0.999999, alphas_cumprod[:-1])    # alpha_bar_{t-1}
         
         # compute variances and mean coefficients for the posterior q(x_{t-1} | x_t, x)
         posterior_variance = (1. - alphas_cumprod_prev) / (1. - alphas_cumprod) * betas
+        posterior_variance[0] = posterior_variance[1]
         coef_x0 = np.sqrt(alphas_cumprod_prev) * betas / (1. - alphas_cumprod)
         coef_xt = np.sqrt(alphas) * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
         
@@ -94,6 +105,7 @@ class DDPM(nn.Module):
         vlb_weights[0] = vlb_weights[1]
         self.register_buffer('vlb_weights', vlb_weights, persistent=False)
         assert not torch.isnan(self.vlb_weights).all()
+        assert posterior_variance[0] != 0
 
     def q_mean_variance(self, x:torch.tensor, t:torch.tensor):
         """
@@ -130,7 +142,7 @@ class DDPM(nn.Module):
         return x_recon
 
     def predict_x_from_eps(self, x_t:torch.tensor, t:torch.tensor, eps:torch.tensor):
-        """Predict the noiseless x from a noisy x_t along with the output of the latent model, eps."""
+        """Predict original data from noise (eps) and noisy data x_t for step t."""
         assert x_t.shape == eps.shape
         x = (
             extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
@@ -222,12 +234,11 @@ class DDPM(nn.Module):
         """
         
         # start with an image of completely random noise
-        b = shape[0]
         img = torch.randn(shape, device=self.device)
 
         # go through the ddpm in reverse order (from t=T to t=0)
         for i in reversed(range(0, self.timesteps)):
-            t = torch.full((b,), i, device=self.device, dtype=torch.long)
+            t = torch.full((shape[0],), i, device=self.device, dtype=torch.long)
             img = self.p_sample(img, t)
         return img
 
@@ -356,14 +367,14 @@ class DDPM(nn.Module):
         # compute kl in bits/dim
         # KL( q(x{t-1} | xt, x0) || p(x{t-1} | xt) )
         kl = normal_kl(true_mean, true_log_var, pred_mean, pred_log_var)
-        kl = flat_bits(kl)      # mean(kl) / log(2)
+        kl = self.flat_loss(kl)
 
         # compute negative log-likelihood
         # L_0 = -log p(x_0 | x_1)
         nll = -discretized_gaussian_log_likelihood(
-            x, means=pred_mean, log_scales=0.5*pred_log_var[0]
+            x, means=pred_mean, log_scales=0.5*pred_log_var
         )
-        nll = flat_bits(nll)    # mean(nll) / log(2)
+        nll = self.flat_loss(nll)
 
         # Return the loss where
         #   if t == 0: vlb = L_0 (discrete NLL)
@@ -394,7 +405,7 @@ class DDPM(nn.Module):
         
         # compute prior KL
         L_T = normal_kl(mean, log_var, 0., 0.)
-        return flat_bits(L_T)
+        return self.flat_loss(L_T)
     
     @torch.no_grad()
     def calc_vlb(self, x:torch.tensor):
@@ -409,27 +420,31 @@ class DDPM(nn.Module):
         Returns:
             The total VLB per batch element.
         """
-
-        batch_size = x.shape[0]
         
-        # compute variational lower bound
-        vlb = []
+        # compute terms L_0, ..., L_{T-1}
+        vlb_t = []
         for t in list(range(self.timesteps))[::-1]:
-            t_batch = torch.full((batch_size,), t, device=self.device, dtype=torch.long)
+            t_batch = torch.full((x.shape[0],), t, device=self.device, dtype=torch.long)
             eps = torch.randn_like(x)
             x_t = self.q_sample(x, t_batch, eps)
             
             # calculate vlb for timestep t
             vlb_ = self.vlb_terms(x, x_t, t_batch)  # try scalar t instead of t_batch
-            vlb.append(vlb_)
-        vlb = torch.stack(vlb, dim=1)
+            vlb_t.append(vlb_)
+
+        # vlb for each timestep for each batch
+        vlb_t = torch.stack(vlb_t, dim=1)
+        
+        # compute the prior (L_T) for each batch
         prior = self.calc_prior(x)
-        total = vlb.sum(dim=1) + prior
+        
+        # sum vlb and prior
+        vlb = vlb_t.sum(dim=1) + prior
         
         return {
-            'vlb': vlb,
+            'vlb_t': vlb_t,
             'prior': prior,
-            'total': total
+            'vlb': vlb
         }
 
     def forward(self, x:torch.tensor):
