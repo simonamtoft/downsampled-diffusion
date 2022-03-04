@@ -6,8 +6,8 @@ import numpy as np
 from torch.optim import Adam
 from functools import partial
 
-from .train_helpers import compute_bits_dim, \
-    mean_and_bits_dim, nats_mean
+from .train_helpers import nats_mean #, \
+    # compute_bits_dim, mean_and_bits_dim
 
 
 class Trainer(object):

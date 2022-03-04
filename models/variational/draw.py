@@ -1,6 +1,3 @@
-import numpy as np
-from operator import mul
-from functools import reduce
 import torch
 import torch.nn as nn
 from torch.distributions import Normal

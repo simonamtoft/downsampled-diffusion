@@ -2,22 +2,20 @@ import torch
 import os
 import wandb
 import numpy as np
-from matplotlib import image
-import matplotlib.pyplot as plt
 from torchvision import utils
 
 
-def compute_bits_dim(nats:torch.Tensor, x_dim:int):
-    """Compute the bits/dim from nats"""
-    nats_dim = nats / x_dim
-    bits_dim = nats_dim / np.log(2)
-    return bits_dim
+# def compute_bits_dim(nats:torch.Tensor, x_dim:int):
+#     """Compute the bits/dim from nats"""
+#     nats_dim = nats / x_dim
+#     bits_dim = nats_dim / np.log(2)
+#     return bits_dim
 
 
-def mean_and_bits_dim(x_dim:int, loss:list):
-    """Takes mean of input loss and returns the bits dim instead of nats."""
-    nats = nats_mean(loss)
-    return compute_bits_dim(nats, x_dim)
+# def mean_and_bits_dim(x_dim:int, loss:list):
+#     """Takes mean of input loss and returns the bits dim instead of nats."""
+#     nats = nats_mean(loss)
+#     return compute_bits_dim(nats, x_dim)
 
 
 def nats_mean(loss:list):

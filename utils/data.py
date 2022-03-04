@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from torchvision.transforms import Compose, Resize, \
     CenterCrop, ToTensor, RandomHorizontalFlip, \
-    Normalize, Lambda, PILToTensor
+    Normalize, Lambda
 from torchvision.datasets import CelebA, CIFAR10, \
     CIFAR100, MNIST, Omniglot, DatasetFolder
 from torch.utils.data import DataLoader
@@ -134,7 +134,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         # define number of samples in train and validation sets
         n_images = len(data)
         split = (n_images * np.array([1-val_split, val_split])).astype(int)
-        if split.sum != n_images:
+        if split.sum() != n_images:
             split[1] += 1
         assert split.sum() == n_images, f'split {split} does not match total {n_images} number of images.'
 

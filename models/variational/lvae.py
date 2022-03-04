@@ -2,8 +2,8 @@ import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
 
-from .vae import Decoder, VariationalAutoencoder
-from .distributions import GaussianSample, \
+from models.variational.vae import Decoder, VariationalAutoencoder
+from models.variational.distributions import GaussianSample, \
     GaussianMerge
 
 

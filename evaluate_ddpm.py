@@ -1,8 +1,6 @@
 import torch
 from models import Unet, DDPM
 from utils import get_dataloader, get_color_channels
-from models.losses import discretized_gaussian_log_likelihood
-from models.helpers import flat_bits
 
 DATA_ROOT = '../data'
 device = 'cuda'

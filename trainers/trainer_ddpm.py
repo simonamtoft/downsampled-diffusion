@@ -26,8 +26,8 @@ class EMA():
 
 
 class TrainerDDPM(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels=n_channels)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
         # set train loader as a cycle instead
         self.train_loader = cycle(self.train_loader)
 
@@ -171,8 +171,8 @@ class TrainerDDPM(Trainer):
         return losses
 
 class TrainerDownsampleDDPM(TrainerDDPM):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='', mute:bool=True, n_channels:int=None):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
 
     def train_loop(self):
         losses = []

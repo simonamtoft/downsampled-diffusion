@@ -1,21 +1,26 @@
-import os
-import torch
 import json
-import random
-import numpy as np
+import torch
 from functools import reduce
 from operator import mul
 
-from utils import get_dataloader, get_color_channels, \
-    get_args, DATASETS
+from utils import DATASETS, get_dataloader, \
+    get_color_channels, get_args, modify_config, \
+    seed_everything
 from trainers import TrainerDDPM, TrainerDownsampleDDPM, \
     TrainerDRAW, TrainerVAE
-from models import MODEL_NAMES, Unet, DDPM, DownsampleDDPM, \
-    DRAW, VariationalAutoencoder, LadderVariationalAutoencoder, \
-    DownsampleDDPMAutoencoder
+from models import MODEL_NAMES, Unet, DDPM, \
+    DownsampleDDPM, DownsampleDDPMAutoencoder, \
+    DRAW, VariationalAutoencoder, LadderVariationalAutoencoder
+# from models.unet.unet import Unet
+# from models.diffusion.ddpm import DDPM
+# from models.diffusion.dddpm import DownsampleDDPM, DownsampleDDPMAutoencoder
+# from models.variational.draw import DRAW
+# from models.variational.vae import VariationalAutoencoder
+# from models.variational.lvae import LadderVariationalAutoencoder
 
 # setup path to data root
 DATA_ROOT = '../data/'
+RES_FOLDER = './results'
 
 # define WANDB project name
 WANDB_PROJECT = 'ddpm-test'
@@ -30,20 +35,26 @@ CONFIG_MODEL = {
     'ddpm': {
         'lr': 2e-5,
         'unet_chan': 64,
-        'unet_dims': (1, 2, 4, 8), #, 8
+        'unet_dims': (1, 2, 4, 8),
         'T': 1000,
-        # simple, vlb, hybrid
-        'loss_type': 'simple',
-        # linear, cosine, sqrt_linear, sqrt
-        'beta_schedule': 'cosine',
+        'loss_type': 'simple',      # simple, vlb, hybrid
+        'beta_schedule': 'cosine',  # linear, cosine, sqrt_linear, sqrt
     },
-    # for mnist
-    # 'draw': {
-    #     'h_dim': 256,
-    #     'z_dim': 32,    
-    #     'T': 10,
-    # },
-    # for Cifar
+    'dddpm': {
+        # set mode of down-up sampling architecture.
+        # options: 
+        #   deterministic
+        #   convolutional
+        #   convolutional_unet
+        #   convolutional_res
+        'mode': 'convolutional_unet',
+        # define loss mode for reconstruction
+        # if true, recon loss is computed directly by
+        # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
+        'ae_loss': False,
+        't_rec_max': 500,
+        'unet_in': 2,
+    },
     'draw': {
         'h_dim': 400,
         'z_dim': 200,
@@ -55,7 +66,6 @@ CONFIG_MODEL = {
         'as_beta': True,
     },
     'lvae': {
-        # Bottom to top
         'h_dim': [512, 256, 256],
         'z_dim': [64, 32, 32],
         'as_beta': True,
@@ -63,20 +73,19 @@ CONFIG_MODEL = {
 }
 
 
-def modify_config(config, model_config):
-    for key, value in model_config.items():
-        config[key] = value
-    return config
-
-
-def get_trainer(config:dict, mute:bool):
+def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', res_folder='./tmp', seed:int=None, val_split:float=0.15):
     """Instantiate a trainer for a model specified by the config dict"""
+    # fix seed
+    seed_everything(seed)
+    
+    # add specific model architecture stuff to config
+    config = modify_config(config, CONFIG_MODEL[config['model']])
     
     # Set device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # get DataLoaders
-    train_loader, val_loader = get_dataloader(config, device, True, DATA_ROOT, 0.15)
+    train_loader, val_loader = get_dataloader(config, device, True, data_root, val_split)
     
     # set channels
     color_channels = get_color_channels(config['dataset'])
@@ -88,91 +97,41 @@ def get_trainer(config:dict, mute:bool):
     x_dim = reduce(mul, x_shape, 1)
     
     # instantiate model and trainer for specified model and dataset
+    train_args = [train_loader, val_loader, device, wandb_project, mute, res_folder, color_channels]
     if config['model'] == 'ddpm':
-        if config['n_downsamples'] == 0:          
-            latent_model = Unet(
-                dim=config['unet_chan'],
-                in_channels=color_channels,
-                dim_mults=config['unet_dims'],
-            )
+        if config['n_downsamples'] == 0:
+            config['unet_in'] = color_channels
+            latent_model = Unet(config)
             model = DDPM(config, latent_model, device, color_channels)
-            trainer = TrainerDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+            trainer = TrainerDDPM(config, model, *train_args)
         else:
-            # set mode of down-up sampling architecture.
-            # options: 
-            #   deterministic
-            #   convolutional
-            #   convolutional_plus
-            #   convolutional_unet
-            config['mode'] = 'convolutional'
-            
-            # set padding mode for convolutional down-up sampling
-            # options: zeros, reflect, replicate, circular
-            pad_mode = 'zeros'
-            
-            # define loss mode
-            # if true, recon loss is computed directly by
-            # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
-            config['ae_loss'] = False
-            
-            # define which t's to compute reconstruction loss for
-            if not config['ae_loss']:
-                config['t_rec_max'] = 750
-            
-            # instantiate latent model
-            unet_in = color_channels
-            if 'convolutional' in config['mode']:
-                unet_in *= np.power(2, config['n_downsamples']).astype(int)
-                config['padding_mode'] = pad_mode
-            latent_model = Unet(
-                dim=config['unet_chan'],
-                in_channels=unet_in,
-                dim_mults=config['unet_dims'],
-            )
-            
-            # instantiate DDPM
+            config = modify_config(config, CONFIG_MODEL['dddpm'])
+            latent_model = Unet(config)
             if config['ae_loss']:
                 model = DownsampleDDPMAutoencoder(config, latent_model, device, color_channels)
             else:
                 model = DownsampleDDPM(config, latent_model, device, color_channels)
-            trainer = TrainerDownsampleDDPM(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+            trainer = TrainerDownsampleDDPM(config, model, *train_args)
     elif config['model'] == 'draw':
         model = DRAW(config, x_dim)
-        trainer = TrainerDRAW(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+        trainer = TrainerDRAW(config, model, *train_args)
     elif config['model'] == 'vae':
         model = VariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+        trainer = TrainerVAE(config, model, *train_args)
     elif config['model'] == 'lvae':
         model = LadderVariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, train_loader, val_loader, device, WANDB_PROJECT, mute, color_channels)
+        trainer = TrainerVAE(config, model, *train_args)
     else: 
         raise NotImplementedError('Specified model not implemented.')
-    return trainer
+    return trainer, config
 
 
-def seed_everything(seed:int) -> None:
-    """Sets the random seed for all the different random calculations."""
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-
-
-if __name__ == '__main__':
-    # fix seed
-    seed_everything(0)
-    
+if __name__ == '__main__':    
     # Get CLI arguments
     config, args = get_args(CONFIG, DATASETS, MODEL_NAMES)
     
-    # add specific model architecture stuff to config
-    config = modify_config(config, CONFIG_MODEL[config['model']])
-    
     # setup model and trainer
-    trainer = get_trainer(config, args['mute'])
+    trainer, config = setup_trainer(config, args['mute'], DATA_ROOT, WANDB_PROJECT, RES_FOLDER, 0)
     
     # print out train configuration
     print('\nTraining configuration dict:')
