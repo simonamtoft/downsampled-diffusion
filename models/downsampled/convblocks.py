@@ -143,16 +143,17 @@ class UnetDown(UnetBase):
             self.downs.append(nn.ModuleList([
                 ResnetBlock(dim_in, dim_out, time_emb_dim=None, groups=self.n_groups),
                 ResnetBlock(dim_out, dim_out, time_emb_dim=None, groups=self.n_groups),
-                Residual(PreNorm(dim_out, LinearAttention(dim_out))),
+                # Residual(PreNorm(dim_out, LinearAttention(dim_out))),
                 Downsample(dim_out) if not is_last else nn.Identity()
             ]))
 
     def forward(self, x):
         # h = []
-        for resnet, resnet2, attn, downsample in self.downs:
+        # resnet, resnet2, attn, downsample
+        for resnet, resnet2, downsample in self.downs:
             x = resnet(x, None)
             x = resnet2(x, None)
-            x = attn(x)
+            # x = attn(x)
             # h.append(x)
             x = downsample(x)
         return x #, h
@@ -167,7 +168,7 @@ class UnetUp(UnetBase):
             self.ups.append(nn.ModuleList([
                 ResnetBlock(dim_out, dim_in, time_emb_dim=None, groups=self.n_groups), #dim_out * 2
                 ResnetBlock(dim_in, dim_in, time_emb_dim=None, groups=self.n_groups), 
-                Residual(PreNorm(dim_in, LinearAttention(dim_in))),
+                # Residual(PreNorm(dim_in, LinearAttention(dim_in))),
                 Upsample(dim_in) if not is_last else nn.Identity()
             ]))
         self.final_conv = nn.Sequential(
@@ -176,10 +177,11 @@ class UnetUp(UnetBase):
         )
 
     def forward(self, x): #, h=None
-        for resnet, resnet2, attn, upsample in self.ups:
+        #  resnet, resnet2, attn, upsample
+        for resnet, resnet2, upsample in self.ups:
             # x = torch.cat((x, h.pop()), dim=1)
             x = resnet(x, None)
             x = resnet2(x, None)
-            x = attn(x)
+            # x = attn(x)
             x = upsample(x)
         return self.final_conv(x)

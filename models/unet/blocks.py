@@ -85,18 +85,25 @@ class Block(nn.Module):
             nn.GroupNorm(groups, dim_out),
             Mish()
         )
+
     def forward(self, x):
         return self.block(x)
 
 
 class ResnetBlock(nn.Module):
-    def __init__(self, dim:int, dim_out:int, *, time_emb_dim=None, groups:int=8):
+    def __init__(self, dim:int, dim_out:int, *, time_emb_dim=None, groups:int=8, dropout:float=0):
         super().__init__()
+        
+        # Instantiate time embedding
         self.mlp = nn.Sequential(
             Mish(),
             nn.Linear(time_emb_dim, dim_out)
         ) if exists(time_emb_dim) else None
+        
+        # instantiate dropout between the two blocks
+        self.dropout = nn.Dropout(p=dropout)
 
+        # instantiate the convolutional blocks
         self.block1 = Block(dim, dim_out, groups)
         self.block2 = Block(dim_out, dim_out, groups)
         self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
@@ -106,7 +113,10 @@ class ResnetBlock(nn.Module):
 
         if exists(self.mlp):
             h += self.mlp(time_emb)[:, :, None, None]
-
+        
+        if self.dropout:
+            h = self.dropout(h)
+        
         h = self.block2(h)
         return h + self.res_conv(x)
 

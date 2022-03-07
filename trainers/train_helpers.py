@@ -76,7 +76,7 @@ def delete_if_exists(path:str):
         os.remove(path)
 
 
-def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None):
+def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None, log:bool=True):
     """Log reconstruction and sample images to wandb."""
 
     # instantiate
@@ -95,7 +95,7 @@ def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str
         name_sample = f'{folder}/sample_{name}.png'
         utils.save_image(x_sample, name_sample, nrow=nrow)
         log_dict['sample'] = wandb.Image(name_sample)
-    
+
     # Log the images to wandb
     wandb.log(log_dict, commit=True)
 

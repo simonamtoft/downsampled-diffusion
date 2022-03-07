@@ -4,10 +4,7 @@ import wandb
 import torch
 import numpy as np
 from torch.optim import Adam
-from functools import partial
-
-from .train_helpers import nats_mean #, \
-    # compute_bits_dim, mean_and_bits_dim
+from .train_helpers import nats_mean
 
 
 class Trainer(object):
@@ -86,32 +83,40 @@ class Trainer(object):
         with open(filename, 'w') as f:
             json.dump(losses, f)
     
-    def save_model(self, save_path:str) -> None:
-        """
-        Save the state dict of the model.
-        https://pytorch.org/tutorials/beginner/saving_loading_models.html
-        """
-        save_data = {
-            'model': self.model.state_dict()
-        }
-        torch.save(save_data, save_path)
+    def init_wandb(self) -> None:
+        # check if we are resuming run
+        # https://docs.wandb.ai/guides/track/advanced/resuming
+        if 'wandb_id' in self.config:
+            wandb_id = self.config['wandb_id']
+        else:
+            wandb_id = wandb.util.generate_id()
+            self.config['wandb_id'] = wandb_id
 
-    def load_model(self, save_path:str) -> None:
-        """Load the state dict into the instantiated model."""
-        save_data = torch.load(save_path)
-        self.model.load_state_dict(save_data['model'])
-
+        # Instantiate wandb run
+        wandb.init(project=self.wandb_name, config=self.config, resume='allow', id=wandb_id)
+        wandb.watch(self.model)
+    
     def finalize(self) -> None:
         """Finalize training by saving the model to wandb and finishing the wandb run."""
         save_path = f'{self.res_folder}/model_{self.name}.pt'
-        self.save_model(save_path)
+        self.save_checkpoint(save_path)
         wandb.save(save_path)
         wandb.finish()
         os.remove(save_path)
         print(f"Training of {self.name} completed!")
-
-    def get_model(self):
-        return self.model
     
-    def train(self):
-        raise NotImplementedError('Implement in subclass...')
+    def train(self) -> torch.Tensor:
+        """Run training. Starts from checkpoint if 'wandb_id' is in config."""
+        self.init_wandb()
+        losses = self.train_loop()
+        self.finalize()
+        return losses
+    
+    def train_loop(self) -> torch.Tensor:
+        raise NotImplementedError('Implement in subclass.')
+
+    def load_checkpoint(self):
+        raise NotImplementedError('Implement in subclass.')
+    
+    def save_checkpoint(self):
+        raise NotImplementedError('Implement in subclass.')

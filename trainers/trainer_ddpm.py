@@ -1,20 +1,30 @@
+import os
 import copy
 import wandb
 import torch
-import numpy as np
 
 from .trainer import Trainer
 from .train_helpers import cycle, num_to_groups, \
-    log_images, min_max_norm
+    log_images, min_max_norm, delete_if_exists
 
 
 class EMA():
-    """Exponential Moving Average used for the parameters during DDPM training."""
-    def __init__(self, beta:float=0.999):
+    def __init__(self, beta:float):
+        """Exponential Moving Average of model parameters.
+        
+        Args:
+            beta (float):    
+        """
         super().__init__()
         self.beta = beta
 
     def update_model_average(self, ma_model, current_model):
+        """
+        Update the parameters of the EMA model with the new parameters of the model used in training.
+        
+        Args:
+            ma_model (nn.module):   The EMA model 
+        """
         for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
             old_weight, up_weight = ma_params.data, current_params.data
             ma_params.data = self.update_average(old_weight, up_weight)
@@ -33,20 +43,24 @@ class TrainerDDPM(Trainer):
 
         # initialize step count used for training
         self.step = 0
+        
+        # list of losses
+        self.losses = []
 
         # specific DDPM trainer stuff
         self.gradient_accumulate_every = 2
-        self.save_and_sample_every = 1000
+        self.logging_every = 1000
 
         # EMA model for DDPM training...
         self.step_start_ema = 2000
         self.update_ema_every = 10
-        self.ema = EMA(0.995)
+        self.ema = EMA(0.9999)
         self.ema_model = copy.deepcopy(self.model)
         self.reset_ema()
 
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
+        self.checkpoint_name = os.path.join('./logging', f'checkpoint_{self.name}.pt')
 
         # define whether to log reconstructions and samples or not
         self.log_recon = True
@@ -61,37 +75,50 @@ class TrainerDDPM(Trainer):
             return
         self.ema.update_model_average(self.ema_model, self.model)
 
-    def save_model(self, save_path:str) -> None:
-        """Save the state dict of the model and ema model."""
+    def save_checkpoint(self) -> None:
+        """Save the checkpoint of the training run locally and to wandb."""
         save_data = {
+            'optimizer': self.opt.state_dict(),
             'model': self.model.state_dict(),
             'ema_model': self.ema_model.state_dict(),
             'config': self.config,
+            'losses': self.losses,
+            'step': self.step,
         }
-        torch.save(save_data, save_path)
-
-    def load_model(self, save_path:str) -> None:
+        torch.save(save_data, self.checkpoint_name)
+        wandb.save(self.checkpoint_name, policy='live')
+    
+    def load_checkpoint(self, checkpoint) -> None:
         """Load the state dict into the instantiated model and ema model."""
-        save_data = torch.load(save_path)
-        self.model.load_state_dict(save_data['model'])
-        self.ema_model.load_state_dict(save_data['ema_model'])
-        self.config = save_data['config']
+        self.opt.load_state_dict(checkpoint['optimizer'])
+        self.model.load_state_dict(checkpoint['model'])
+        self.ema_model.load_state_dict(checkpoint['ema_model'])
+        self.config = checkpoint['config']
+        self.losses = checkpoint['losses']
+        self.step = checkpoint['step']
 
+    @torch.no_grad()
     def sample(self) -> torch.Tensor:
-        """Generate n_images samples from the model."""
+        """Generate n_images samples from the EMA model."""
         batches = num_to_groups(self.n_samples, self.batch_size)
         all_images_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
         samples = torch.cat(all_images_list, dim=0)
         return samples
 
+    @torch.no_grad()
     def recon(self, x:torch.Tensor) -> torch.Tensor:
         """Generate n_images reconstructions from the model."""
         assert x.shape[0] >= self.n_samples
         x = x[:self.n_samples]
-        x_recon = self.model.reconstruct(x)
+        x_recon = self.ema_model.reconstruct(x)
         return x_recon
 
-    def log_images(self, x:torch.Tensor) -> None:
+    @torch.no_grad()
+    def log_wandb(self, x:torch.Tensor) -> None:
+        """Log reconstruction and sample images along with a training checkpoint to wandb."""
+        # save model to wandb
+        self.save_checkpoint()
+        
         # generate samples and reconstructions
         samples = self.sample() if self.log_sample else None
         recon = self.recon(x) if self.log_recon else None
@@ -105,30 +132,22 @@ class TrainerDDPM(Trainer):
             # print('recon:', recon.min(), recon.max())
             recon = min_max_norm(recon)
 
-        # log images to wandb
-        step = self.step // self.save_and_sample_every
+        # define basename
+        log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
+        
+        # get log dict etc.
         log_images(
             x_recon=recon, 
             x_sample=samples, 
             folder=self.res_folder, 
-            name=f'{step}_{self.name}_{self.config["dataset"]}.png', 
+            name=f'{log_name}.png', 
             nrow=self.n_rows
         )
 
-    def train(self) -> torch.Tensor:
-        # Instantiate wandb run
-        wandb.init(project=self.wandb_name, config=self.config)
-        wandb.watch(self.model)
-
-        # run training
-        losses = self.train_loop()
-
-        # Finalize training
-        self.finalize()
-        return losses
+        # remove local checkpoint file
+        delete_if_exists(self.checkpoint_name)
     
     def train_loop(self) -> list:
-        losses = []
         while self.step < self.n_steps:
             train_obj = []
             self.model.train()
@@ -157,25 +176,24 @@ class TrainerDDPM(Trainer):
 
             # eval stuff
             self.model.eval()
-            loss_obj = np.mean(train_obj)
-            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
+            loss_obj = self.loss_handle(train_obj)
+            self.losses.append(loss_obj)
+            is_log = self.step != 0 and self.step % self.logging_every == 0
             wandb.log({
                 'train_obj': loss_obj
-            }, commit=(not is_milestone))
-            if is_milestone:
-                self.log_images(x)
+            }, commit=(not is_log))
+            if is_log:
+                self.log_wandb(x)
 
             # update step
             self.step += 1
-        
-        return losses
+
 
 class TrainerDownsampleDDPM(TrainerDDPM):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
 
     def train_loop(self):
-        losses = []
         while self.step < self.n_steps:
             train_obj = []
             train_latent = []
@@ -201,7 +219,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             loss_ = self.loss_handle(train_obj)
             loss_latent_ = self.loss_handle(train_latent)
             loss_recon_ = self.loss_handle(train_recon)
-            losses.append(loss_)
+            self.losses.append(loss_)
 
             # update gradients
             self.opt.step()
@@ -212,15 +230,14 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 self.step_ema()
 
             # log stuff to wandb
-            is_milestone = self.step != 0 and self.step % self.save_and_sample_every == 0
+            is_log = self.step != 0 and self.step % self.logging_every == 0
             wandb.log({
                 'train_obj': loss_,
                 'train_latent': loss_latent_,
                 'train_recon': loss_recon_
-            }, commit=(not is_milestone))
-            if is_milestone:
-                self.log_images(x)
+            }, commit=(not is_log))
+            if is_log:
+                self.log_wandb(x)
 
             # update step
             self.step += 1
-        return losses
