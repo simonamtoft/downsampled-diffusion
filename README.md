@@ -15,7 +15,7 @@ pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f ht
 
 ## Data Requirements
 
-Start by downloading the LSUN datasets `tower` and `church_outdoor` and the test set, by running the following commands inside the `data` folder:
+<!-- Start by downloading the LSUN datasets `tower` and `church_outdoor` and the test set, by running the following commands inside the `data` folder:
 
 ```cli
 python download_lsun.py -c tower
@@ -33,7 +33,7 @@ wget https://storage.googleapis.com/glow-demo/data/imagenet-oord-tfr.tar
 tar -xvf imagenet-oord-tfr.tar
 python convert_tfrecord_to_lmdb.py --dataset=imagenet-oord_32 --tfr_path=$DATA_DIR/imagenet-oord/mnt/host/imagenet-oord-tfr --lmdb_path=/imagenet-oord/imagenet-oord-lmdb_32 --split=train
 python convert_tfrecord_to_lmdb.py --dataset=imagenet-oord_32 --tfr_path=$DATA_DIR/imagenet-oord/mnt/host/imagenet-oord-tfr --lmdb_path=/imagenet-oord/imagenet-oord-lmdb_32 --split=validation
-```
+``` -->
 
 The rest of the datasets is downloaded using the `Explore Datasets.ipynb` python notebook.
 
