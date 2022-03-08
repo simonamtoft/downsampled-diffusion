@@ -56,19 +56,21 @@ class DDPM(nn.Module):
 
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
-        
+
         # Compute alphas from betas
         alphas = 1. - betas                                         # alpha_t
         alphas_cumprod = np.cumprod(alphas, axis=0)                 # alpha_bar_t
         alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])    # alpha_bar_{t-1}
         # alphas_cumprod_prev = np.append(0.999999, alphas_cumprod[:-1])    # alpha_bar_{t-1}
-        
+
         # compute variances and mean coefficients for the posterior q(x_{t-1} | x_t, x)
         posterior_variance = (1. - alphas_cumprod_prev) / (1. - alphas_cumprod) * betas
-        posterior_variance[0] = posterior_variance[1]
         coef_x0 = np.sqrt(alphas_cumprod_prev) * betas / (1. - alphas_cumprod)
         coef_xt = np.sqrt(alphas) * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
-        
+
+        # fix this to properly calculate the likelihood term L_0
+        posterior_variance[0] = posterior_variance[1]
+
         # ensure variables are pytorch tensors with dtype float32
         to_torch = partial(torch.tensor, dtype=torch.float32)
         
@@ -123,20 +125,27 @@ class DDPM(nn.Module):
         return mean, variance, log_variance
 
     @torch.no_grad()
-    def reconstruct(self, x:torch.tensor):
-        """Reconstructs x_hat from the noiseless input x"""
-        # set t=0 for each x
-        t_0 = torch.full((x.shape[0],), 0, device=self.device, dtype=torch.long)
+    def reconstruct(self, x:torch.tensor, n:int):
+        """
+        Reconstructs x_hat from the noiseless input x, 
+        for increasing time-scales 0 to T linearly spaced.
+        """
+        # only produce n reconstructions
+        assert x.shape[0] >= n
+        x = x[:n]
         
+        # define linear timescales from 0 to T for n steps
+        t = torch.linspace(0, self.timesteps - 1, n, device=self.device, dtype=torch.long)
+
         # generate Gaussian noise: eps ~ N(0, 1)
         eps = torch.randn_like(x)
 
         # sample noisy x from q distribution for t=0
-        x_0 = self.q_sample(x, t_0, eps)
+        x_0 = self.q_sample(x, t, eps)
 
         # return reconstruction
-        eps_hat = self.latent_model(x_0, t_0)
-        x_recon = self.predict_x_from_eps(x_0, t_0, eps_hat)
+        eps_hat = self.latent_model(x_0, t)
+        x_recon = self.predict_x_from_eps(x_0, t, eps_hat)
         return x_recon
 
     def predict_x_from_eps(self, x_t:torch.tensor, t:torch.tensor, eps:torch.tensor):
@@ -295,25 +304,26 @@ class DDPM(nn.Module):
         
         # Compute the 3 different losses
         L_simple = loss.mean()
-        L_vlb = (self.vlb_weights[t] * loss).mean()
-        L_hybrid = L_simple + self.lambda_ * L_vlb
+        return L_simple
+        # L_vlb = (self.vlb_weights[t] * loss).mean()
+        # L_hybrid = L_simple + self.lambda_ * L_vlb
         
         # compute objective function
-        if self.L == 'simple':
-            obj = L_simple
-        elif self.L == 'vlb':
-            obj = L_vlb
-        elif self.L == 'hybrid':
-            obj = L_hybrid
+        # if self.L == 'simple':
+        #     obj = L_simple
+        # elif self.L == 'vlb':
+        #     obj = L_vlb
+        # elif self.L == 'hybrid':
+        #     obj = L_hybrid
         
         # store losses in a dict
-        loss_dict = {
-            'L_simple': L_simple,
-            'L_vlb': L_vlb,
-            'L_hybrid': L_hybrid
-        }
+        # loss_dict = {
+        #     'L_simple': L_simple,
+        #     'L_vlb': L_vlb,
+        #     'L_hybrid': L_hybrid
+        # }
         
-        return obj, loss_dict
+        # return obj, loss_dict
     
     def vlb_terms(self, x:torch.tensor, x_t:torch.tensor, t:torch.tensor):
         """
