@@ -111,3 +111,14 @@ def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str
 def min_max_norm(x):
     """Returns the min-max normalization of x."""
     return (x - x.min()) / (x.max() - x.min())
+
+
+def min_max_batch_norm(x:torch.tensor):
+    """
+    Returns the min-max normalization per image 
+    instead of over the entire batch of x.
+    """
+    b = x.shape[0]
+    x_min = x.view(b, -1).min(dim=1).values[:, None, None, None]
+    x_max = x.view(b, -1).max(dim=1).values[:, None, None, None]
+    return (x - x_min) / (x_max - x_min)

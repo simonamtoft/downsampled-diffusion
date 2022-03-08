@@ -5,7 +5,8 @@ import torch
 
 from .trainer import Trainer
 from .train_helpers import cycle, num_to_groups, \
-    log_images, min_max_norm, delete_if_exists
+    log_images, min_max_norm, delete_if_exists, \
+    min_max_batch_norm
 
 
 class EMA():
@@ -41,6 +42,9 @@ class TrainerDDPM(Trainer):
         # make data loaders cyclic
         self.train_loader = cycle(self.train_loader)
         self.val_loader = cycle(self.val_loader)
+        
+        # take a single batch from the validation dataset
+        self.val_batch = next(self.val_loader)[0].to(self.device)
 
         # initialize step count used for training
         self.step = 0
@@ -116,8 +120,8 @@ class TrainerDDPM(Trainer):
     @torch.no_grad()
     def log_wandb(self, x:torch.Tensor, commit:bool=True) -> None:
         """Log reconstruction and sample images to wandb."""
-        samples = min_max_norm(self.sample()) if self.log_sample else None
-        recon = min_max_norm(self.recon(x)) if self.log_recon else None
+        samples = min_max_batch_norm(self.sample()) if self.log_sample else None
+        recon = min_max_batch_norm(self.recon(x)) if self.log_recon else None
         log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
         log_images(
             x_recon=recon, 
@@ -167,14 +171,19 @@ class TrainerDDPM(Trainer):
             ####    EVAL STEP   ####
             self.model.eval()
             if is_log:
-                x, _ = next(self.val_loader)
-                x = x.to(self.device)
+                # x, _ = next(self.val_loader)
+                # x = x.to(self.device)
                 self.save_checkpoint()
-                self.log_wandb(x)
+                self.log_wandb(self.val_batch)
                 delete_if_exists(self.checkpoint_name)
 
             ####    INCREMENT   ####
             self.step += 1
+
+
+def rescale_zero_one(x:torch.tensor):
+    x = (x + 1) * 0.5
+    return torch.clamp(x, min=0, max=1)
 
 
 class TrainerDownsampleDDPM(TrainerDDPM):
@@ -194,10 +203,21 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         z_recon = z_recon[:, 0, None]
         z_sample = z_sample[:, 0, None]
         
-        print('\n\nSHAPES:')
-        print(z_recon.shape, z_sample.shape)
-        print('\n\n')
-        
+
+        # do min-max normalization
+        print('\nBEFORE')
+        print('\tx_recon\tz_recon\tx_sample\tz_sample')
+        print('min:', x_recon.min(), z_recon.min(), x_sample.min(), z_sample.min())
+        print('max:', x_recon.max(), z_recon.max(), x_sample.max(), z_sample.max())
+        x_recon, z_recon, x_sample, z_sample = (
+            min_max_batch_norm(x_recon), min_max_batch_norm(z_recon), 
+            min_max_batch_norm(x_sample), min_max_batch_norm(z_sample)
+        )
+        print('\nAFTER')
+        print('\tx_recon\tz_recon\tx_sample\tz_sample')
+        print('min:', x_recon.min(), z_recon.min(), x_sample.min(), z_sample.min())
+        print('max:', x_recon.max(), z_recon.max(), x_sample.max(), z_sample.max())
+
         # log original image space reconstructions and samples to wandb
         log_images(
             x_recon=x_recon,
@@ -265,11 +285,11 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             ####    EVAL STEP   ####
             self.model.eval()
             if is_log:
-                x, _ = next(self.val_loader)
-                x = x.to(self.device)
-                self.save_checkpoint()
-                self.log_wandb(x)
-                delete_if_exists(self.checkpoint_name)
+                # x, _ = next(self.val_loader)
+                # x = x.to(self.device)
+                # self.save_checkpoint()
+                self.log_wandb(self.val_batch)
+                # delete_if_exists(self.checkpoint_name)
 
             ####    INCREMENT   ####
             self.step += 1
