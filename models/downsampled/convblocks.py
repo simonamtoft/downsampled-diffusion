@@ -92,19 +92,19 @@ class SimpleUpConv(BaseConv):
 
 
 class ConvResBlock(nn.Module):
-    def __init__(self, in_channels:int, out_channels:int, upsample:bool=False, dropout:bool=False, residual:bool=False):
+    def __init__(self, in_channels:int, out_channels:int, upsample:bool=False, dropout:float=0, residual:bool=False):
         super().__init__()
         self.upsample = upsample
-        self.dropout = dropout
         self.residual = residual # set to false for start/end
 
+        # convolutional layers
         self.c1 = get_1x1(in_channels, in_channels)
         self.c2 = get_3x3(in_channels, out_channels)
         self.c3 = get_3x3(out_channels, out_channels)
         self.c4 = get_1x1(out_channels, out_channels)
         
-        if dropout:
-            self.drop = nn.Dropout2d(p=0.1)
+        # dropout layer
+        self.drop = nn.Dropout2d(p=dropout)
 
     def forward(self, x:torch.Tensor) -> torch.Tensor:
         # perform convolutions
@@ -114,7 +114,7 @@ class ConvResBlock(nn.Module):
         x_hat = self.c4(F.gelu(x_hat))
         
         # add dropout
-        x_hat = self.drop(x_hat) if self.dropout else x_hat
+        x_hat = self.drop(x_hat)
         
         # residual connection
         out = x + x_hat if self.residual else x_hat
@@ -128,21 +128,22 @@ class ConvResBlock(nn.Module):
 
 
 class UnetBase(BaseConv):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1):
+    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
         super().__init__(dim, in_channels, n_downsamples)
+        self.dropout = dropout
         self.n_groups = n_groups
         self.num_resolutions = len(self.in_out)
 
 
 class UnetDown(UnetBase):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1):
-        super().__init__(dim, in_channels, n_downsamples, n_groups)
+    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
+        super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
         self.downs = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(self.in_out):
             is_last = ind >= (self.num_resolutions - 1)
             self.downs.append(nn.ModuleList([
-                ResnetBlock(dim_in, dim_out, time_emb_dim=None, groups=self.n_groups),
-                ResnetBlock(dim_out, dim_out, time_emb_dim=None, groups=self.n_groups),
+                ResnetBlock(dim_in, dim_out, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout),
+                ResnetBlock(dim_out, dim_out, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout),
                 # Residual(PreNorm(dim_out, LinearAttention(dim_out))),
                 Downsample(dim_out) if not is_last else nn.Identity()
             ]))
@@ -160,14 +161,14 @@ class UnetDown(UnetBase):
 
 
 class UnetUp(UnetBase):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1):
-        super().__init__(dim, in_channels, n_downsamples, n_groups)
+    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
+        super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
         self.ups = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(self.in_out[1:])):
             is_last = ind >= (self.num_resolutions - 1)
             self.ups.append(nn.ModuleList([
-                ResnetBlock(dim_out, dim_in, time_emb_dim=None, groups=self.n_groups), #dim_out * 2
-                ResnetBlock(dim_in, dim_in, time_emb_dim=None, groups=self.n_groups), 
+                ResnetBlock(dim_out, dim_in, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout), #dim_out * 2
+                ResnetBlock(dim_in, dim_in, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout), 
                 # Residual(PreNorm(dim_in, LinearAttention(dim_in))),
                 Upsample(dim_in) if not is_last else nn.Identity()
             ]))

@@ -14,8 +14,9 @@ def get_upsampling(config:dict, shape:tuple):
     assert shape[0] == 1 or shape[0] == 3
     in_channels = shape[0]
     mode = config['mode']
-    n_down = config['n_downsamples']
     dim = config['unet_in']
+    dropout = config['d_dropout']
+    n_down = config['n_downsamples']
     
     if mode == 'deterministic':
         size = (shape[1], shape[2])
@@ -23,9 +24,9 @@ def get_upsampling(config:dict, shape:tuple):
     elif mode == 'convolutional':
         return SimpleUpConv(dim, in_channels, n_down)
     elif mode == 'convolutional_unet':
-        return UnetUp(dim, in_channels, n_down)
+        return UnetUp(dim, in_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(dim, in_channels, upsample=True)
+        return ConvResBlock(dim, in_channels, upsample=True, dropout=dropout)
     else:
         raise NotImplementedError(f'Upsampling method for "{mode}" not implemented!')
 
@@ -41,8 +42,9 @@ def get_downsampling(config:dict, shape:tuple):
     assert shape[0] == 1 or shape[0] == 3
     in_channels = shape[0]
     mode = config['mode']
-    n_down = config['n_downsamples']
     dim = config['unet_in']
+    dropout = config['d_dropout']
+    n_down = config['n_downsamples']
     
     if mode == 'deterministic':
         scale = np.power(2, n_down).astype(int)
@@ -52,8 +54,8 @@ def get_downsampling(config:dict, shape:tuple):
     elif mode == 'convolutional':
         return SimpleDownConv(dim, in_channels, n_down)
     elif mode == 'convolutional_unet':
-        return UnetDown(dim, in_channels, n_down)
+        return UnetDown(dim, in_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(in_channels, dim, upsample=False)
+        return ConvResBlock(in_channels, dim, upsample=False, dropout=dropout)
     else:
         raise NotImplementedError(f'Downsampling method for "{mode}" not implemented!')

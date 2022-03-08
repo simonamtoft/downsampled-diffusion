@@ -42,6 +42,7 @@ CONFIG_MODEL = {
         'ae_loss': False,
         't_rec_max': 500,
         'unet_in': 4,
+        'd_dropout': 0,
     },
     'draw': {
         'h_dim': 400,
