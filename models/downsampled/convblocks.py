@@ -86,7 +86,7 @@ class SimpleUpConv(BaseConv):
         conv_list = []
         for in_, out_ in self.in_out[::-1]:
             conv_list.append(
-                get_4x4_transpose(in_, out_)
+                get_4x4_transpose(out_, in_)
             )
         self.conv = nn.Sequential(*conv_list)
 
@@ -132,7 +132,7 @@ class UnetBase(BaseConv):
         super().__init__(dim, in_channels, n_downsamples)
         self.dropout = dropout
         self.n_groups = n_groups
-        self.num_resolutions = len(self.in_out)
+        # self.num_resolutions = len(self.in_out)
 
 
 class UnetDown(UnetBase):
@@ -140,12 +140,12 @@ class UnetDown(UnetBase):
         super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
         self.downs = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(self.in_out):
-            is_last = ind >= (self.num_resolutions - 1)
+            # is_last = ind >= (self.num_resolutions - 1)
             self.downs.append(nn.ModuleList([
                 ResnetBlock(dim_in, dim_out, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout),
                 ResnetBlock(dim_out, dim_out, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout),
                 # Residual(PreNorm(dim_out, LinearAttention(dim_out))),
-                Downsample(dim_out) if not is_last else nn.Identity()
+                Downsample(dim_out) #if not is_last else nn.Identity()
             ]))
 
     def forward(self, x):
@@ -165,12 +165,12 @@ class UnetUp(UnetBase):
         super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
         self.ups = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(self.in_out[1:])):
-            is_last = ind >= (self.num_resolutions - 1)
+            # is_last = ind >= (self.num_resolutions - 1)
             self.ups.append(nn.ModuleList([
                 ResnetBlock(dim_out, dim_in, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout), #dim_out * 2
                 ResnetBlock(dim_in, dim_in, time_emb_dim=None, groups=self.n_groups, dropout=self.dropout), 
                 # Residual(PreNorm(dim_in, LinearAttention(dim_in))),
-                Upsample(dim_in) if not is_last else nn.Identity()
+                Upsample(dim_in) #if not is_last else nn.Identity()
             ]))
         self.final_conv = nn.Sequential(
             Block(dim, dim, groups=self.n_groups),
