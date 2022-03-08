@@ -19,14 +19,14 @@ CONFIG = {
 # specific model architecture config
 CONFIG_MODEL = {
     'ddpm': {
-        'lr': 2e-4,                 # iddpm paper: 2e-4 for 32x32, 2e-5 for 256x256
-        'unet_chan': 128,           # iddpm paper: 128
-        'unet_dims': (1, 2, 2, 2),  # iddpm paper: (1, 2, 2, 2)
-        'unet_dropout': 0.1,        # iddpm paper: 0.1 for linear, 0.3 for cosine
+        'lr': 2e-5,                 # iddpm paper: 2e-4 for 32x32, 2e-5 for 256x256
+        'unet_chan': 64,            # iddpm paper: 128
+        'unet_dims': (1, 2, 4, 8),  # iddpm paper: (1, 2, 2, 2)
+        'unet_dropout': 0,          # iddpm paper: 0.1 for linear, 0.3 for cosine
         'T': 1000,                  # iddpm paper: 4000, ddpm: 1000
         'loss_type': 'simple',      # simple, vlb, hybrid
-        'beta_schedule': 'linear',  # linear, cosine, sqrt_linear, sqrt
-        # 'ema': 0.9999,              # iddpm + ddpm: 0.9999
+        'beta_schedule': 'cosine',  # linear, cosine, sqrt_linear, sqrt
+        # 'ema': 0.999,             # iddpm + ddpm: 0.999
     },
     'dddpm': {
         # set mode of down-up sampling architecture.
@@ -35,13 +35,13 @@ CONFIG_MODEL = {
         #   convolutional
         #   convolutional_unet
         #   convolutional_res
-        'mode': 'convolutional',
+        'd_mode': 'convolutional_unet',
         # define loss mode for reconstruction
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
         't_rec_max': 500,
-        'unet_in': 4,
+        'unet_in': 2,
         'd_dropout': 0,
     },
     'draw': {
