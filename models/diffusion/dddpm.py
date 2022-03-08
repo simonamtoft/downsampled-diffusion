@@ -61,11 +61,11 @@ class DownsampleDDPM(DDPM):
         eps_hat = self.latent_model(z_t, t)
 
         # compute latent space reconstruction
-        z_hat = self.predict_x_from_eps(z_t, t, eps_hat)
+        z_recon = self.predict_x_from_eps(z_t, t, eps_hat)
 
         # upsample reconstruction
-        x_recon = self.upsample(z_hat)
-        return x_recon, z_hat
+        x_recon = self.upsample(z_recon)
+        return x_recon, z_recon
 
     @torch.no_grad()
     def sample(self, batch_size:int=16) -> tuple:
@@ -105,9 +105,11 @@ class DownsampleDDPM(DDPM):
         # compute the reconstruction loss
         # set it to 0 when t >= t_rec_max
         loss_recon = self.get_loss(x, x_hat).mean(dim=[1, 2, 3])
-        zeros = torch.zeros_like(loss_recon).detach()
-        cond = (t < self.t_rec_max).detach()
-        loss_recon = torch.where(cond, loss_recon, zeros)
+        loss_recon = torch.where(
+            t < self.t_rec_max, 
+            loss_recon,
+            torch.zeros_like(loss_recon)
+        )
 
         # compute objective
         obj = (loss_latent + loss_recon).mean()
