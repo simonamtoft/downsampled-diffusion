@@ -29,105 +29,86 @@ class DownsampleDDPM(DDPM):
         self.upsample = get_upsampling(config, shape)
 
     @torch.no_grad()
-    def reconstruct(self, x:torch.tensor) -> torch.tensor:
+    def reconstruct(self, x:torch.tensor, n:int) -> tuple:
         """
         Reconstructs x_hat from x in downsampled space and upsamples at the end.
         Method only used for visualization and not for computing gradients etc.
-        """
-        # Get the first diffusion step (t=0)
-        t_0 = torch.full((x.shape[0],), 0, device=self.device, dtype=torch.long)
         
+        Returns
+            x_recon (torch.tensor): A tensor of n reconstructions of x in the 
+                                    original image space. The reconstructions 
+                                    are made from increasing noisy x_t for
+                                    timescales t linearly between 0 to T.
+            z_hat   (torch.tensor): A tensor of n reconstructions of x in the 
+                                    latent space. The reconstructions 
+                                    are made from increasing noisy z_t for
+                                    timescales t linearly between 0 to T.
+        """
+        assert x.shape[0] >= n
+        x = x[:n]
+
+        # define linear timescales from 0 to T for n steps
+        t = torch.linspace(0, self.timesteps - 1, n, device=self.device, dtype=torch.long)
+
         # downsample the input
         z = self.downsample(x)
 
-        # Generate noise
+        # sample noisy z_t from the q distribution
         eps = torch.randn_like(z)
-        
-        # sample noisy z from q distribution for t=1
-        z_0 = self.q_sample(z, t_0, eps)
-        
-        # get model output eps for z_0 and get reconstruction
-        eps_hat = self.latent_model(z_0, t_0)
-        z_hat = self.predict_x_from_eps(z_0, t_0, eps_hat)
-        
-        # upsample reconstruction and return
+        z_t = self.q_sample(z, t, eps)
+
+        # predict added noise for each z_t
+        eps_hat = self.latent_model(z_t, t)
+
+        # compute latent space reconstruction
+        z_hat = self.predict_x_from_eps(z_t, t, eps_hat)
+
+        # upsample reconstruction
         x_recon = self.upsample(z_hat)
-        return x_recon
+        return x_recon, z_hat
 
     @torch.no_grad()
-    def p_sample_loop(self, shape:tuple) -> torch.tensor:
-        # Create random noise in downsampled image space
-        img = torch.randn(shape, device=self.device)
-                
-        # Pass backwards through the DDPM
-        for i in reversed(range(0, self.timesteps)):
-            img = self.p_sample(img, torch.full((shape[0],), i, device=self.device, dtype=torch.long))
-
-        # return the upsampled result
-        img = self.upsample(img)
-        return img
-
-    # def losses(self, x:torch.tensor, t:torch.tensor) -> tuple:
-    #     """Train loss computations for the Downsample DDPM architecture."""
-
-    #     # generate noise
-    #     eps = torch.randn_like(x)
-
-    #     # downsample the input and noise
-    #     z = self.downsample(x)
-    #     eps_z = self.downsample(eps)
-
-    #     # sample noisy z from q distribution for step t
-    #     z_t = self.q_sample(z, t, eps_z)
-
-    #     # predict the noise for step t
-    #     eps_z_hat = self.latent_model(z_t, t)
-
-    #     # create reconstrution from model output at step t and upsample
-    #     eps_hat = self.upsample(eps_z_hat)
-
-    #     # compute latent loss
-    #     loss_latent = self.get_loss(eps, eps_hat).mean(dim=[1, 2, 3])
-
-    #     # compute the reconstruction loss
-    #     loss_recon = torch.tensor([0.]).to(self.device)
+    def sample(self, batch_size:int=16) -> tuple:
+        """
+        Sample a batch of images in latent space, and upsample these to original
+        image space.
         
-    #     # compute objective
-    #     obj = (loss_latent + loss_recon).mean()
-
-    #     return obj, {
-    #         'latent': loss_latent.mean(),
-    #         'recon': loss_recon.mean()
-    #     }
+        Returns:
+            x_sample (torch.tensor):    A tensor of batch_size samples in original image space.
+            z_sample (torch.tensor):    A tensor of batch_size samples in latent space.
+        """
+        z_sample = self.p_sample_loop((batch_size, *self.sample_shape))
+        x_sample = self.upsample(z_sample)
+        return x_sample, z_sample
 
     def losses(self, x:torch.tensor, t:torch.tensor) -> tuple:
         """Train loss computations for the Downsample DDPM architecture."""
         # downsample the input
         z = self.downsample(x)
-        
+
         # Generate noise
         eps = torch.randn_like(z)
-        
+
         # sample noisy z from q distribution for step t
         z_t = self.q_sample(z, t, eps)
-        
+
         # predict the noise for step t
         eps_hat = self.latent_model(z_t, t)
-        
+
         # create reconstrution from model output at step t and upsample
         z_hat = self.predict_x_from_eps(z_t, t, eps_hat)
         x_hat = self.upsample(z_hat)
-        
+
         # compute latent loss
         loss_latent = self.get_loss(eps, eps_hat).mean(dim=[1, 2, 3])
-        
+
         # compute the reconstruction loss
         # set it to 0 when t >= t_rec_max
         loss_recon = self.get_loss(x, x_hat).mean(dim=[1, 2, 3])
         zeros = torch.zeros_like(loss_recon).detach()
         cond = (t < self.t_rec_max).detach()
         loss_recon = torch.where(cond, loss_recon, zeros)
-        
+
         # compute objective
         obj = (loss_latent + loss_recon).mean()
 
