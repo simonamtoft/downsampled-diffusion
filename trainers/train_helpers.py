@@ -76,7 +76,7 @@ def delete_if_exists(path:str):
         os.remove(path)
 
 
-def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None, log:bool=True):
+def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None, rname:str=None, sname:str=None, commit:bool=True):
     """Log reconstruction and sample images to wandb."""
 
     # instantiate
@@ -84,20 +84,24 @@ def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str
     name_recon = './tmp/recon_tmp.png'
     name_sample = './tmp/sample_tmp.png'
     
+    # set wandb log names
+    rname = 'recon' if rname is None else rname
+    sname = 'sample' if sname is None else sname
+    
     # add reconstruction to log
     if x_recon is not None:
         name_recon = f'{folder}/recon_{name}.png'
         utils.save_image(x_recon, name_recon, nrow=nrow)
-        log_dict['recon'] = wandb.Image(name_recon)
+        log_dict[rname] = wandb.Image(name_recon)
      
     # add samples to log
     if x_sample is not None:
         name_sample = f'{folder}/sample_{name}.png'
         utils.save_image(x_sample, name_sample, nrow=nrow)
-        log_dict['sample'] = wandb.Image(name_sample)
+        log_dict[sname] = wandb.Image(name_sample)
 
     # Log the images to wandb
-    wandb.log(log_dict, commit=True)
+    wandb.log(log_dict, commit=commit)
 
     # Delete the logged images
     delete_if_exists(name_recon)
