@@ -15,7 +15,8 @@ class Unet(nn.Module):
         """
         # dim:int, out_dim:int=None, dim_mults:tuple=(1, 2, 4, 8), in_channels:int=3, 
         super().__init__()
-
+        
+        # extract fields from config
         dim = config['unet_chan']
         in_channels = config['unet_in']
         dim_mults = config['unet_dims']

@@ -58,15 +58,6 @@ def get_args(config: dict, data_names: list, model_names: list) -> tuple:
         action='store_true'
     )
 
-    # Pick number of models to train
-    parser.add_argument(
-        '-n',
-        help='Pick number times to train model.', 
-        default=1,
-        type=int,
-        dest='n_runs'
-    )
-
     # Pick whether to downsample or not (only for ddpm)
     if 'ddpm' in model_names:
         parser.add_argument(
@@ -88,8 +79,5 @@ def get_args(config: dict, data_names: list, model_names: list) -> tuple:
     # remove downsample if model is not ddpm
     if config['model'] != 'ddpm':
         del config['n_downsamples']
-    
-    # leftover args
-    args_ = {'n_runs': args.n_runs, 'mute': args.mute}
 
-    return config, args_
+    return config, args.mute

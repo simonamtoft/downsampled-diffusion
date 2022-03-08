@@ -28,7 +28,6 @@ def inv_binarize(x:torch.Tensor) -> torch.Tensor:
 
 def download_datasets(data_root:str=DATA_ROOT) -> None:
     """Downloads the following datasets: CIFAR10, CIFAR100, Omniglot & MNIST"""
-    # _ = CelebA(DATA_ROOT, download=True)
     print('Downloading CIFAR10')
     _ = CIFAR10(data_root, download=True)
     _ = CIFAR10(data_root, download=True, train=False)
@@ -171,7 +170,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
 
 
 def get_color_channels(dataset:str) -> int:
-    if dataset in ['cifar10', 'cifar100']:
+    if dataset in ['cifar10', 'cifar100', 'celeba_hq']:
         return 3
     elif dataset in ['mnist', 'omniglot']:
         return 1

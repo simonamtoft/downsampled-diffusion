@@ -19,14 +19,14 @@ CONFIG = {
 # specific model architecture config
 CONFIG_MODEL = {
     'ddpm': {
-        #2e-4 for 32x32, 2e-5 for 256x256
-        'lr': 2e-4,
-        'unet_chan': 128,
-        'unet_dims': (1, 2, 2, 2),
-        'unet_dropout': 0.1,
-        'T': 1000,
+        'lr': 2e-4,                 # iddpm paper: 2e-4 for 32x32, 2e-5 for 256x256
+        'unet_chan': 128,           # iddpm paper: 128
+        'unet_dims': (1, 2, 2, 2),  # iddpm paper: (1, 2, 2, 2)
+        'unet_dropout': 0.1,        # iddpm paper: 0.1 for linear, 0.3 for cosine
+        'T': 1000,                  # iddpm paper: 4000, ddpm: 1000
         'loss_type': 'simple',      # simple, vlb, hybrid
         'beta_schedule': 'linear',  # linear, cosine, sqrt_linear, sqrt
+        # 'ema': 0.9999,              # iddpm + ddpm: 0.9999
     },
     'dddpm': {
         # set mode of down-up sampling architecture.
@@ -63,7 +63,7 @@ CONFIG_MODEL = {
 
 if __name__ == '__main__':
     # Get CLI arguments
-    config, args = get_args(CONFIG, DATASETS, MODEL_NAMES)
+    config, mute = get_args(CONFIG, DATASETS, MODEL_NAMES)
 
     # add specific model architecture stuff to config
     config = modify_config(config, CONFIG_MODEL[config['model']])
@@ -73,7 +73,7 @@ if __name__ == '__main__':
             config = modify_config(config, CONFIG_MODEL['dddpm'])
     
     # setup model and trainer
-    trainer, config = setup_trainer(config, args['mute'], DATA_ROOT, WANDB_PROJECT, RES_FOLDER, 0)
+    trainer, config = setup_trainer(config, mute, DATA_ROOT, WANDB_PROJECT, RES_FOLDER, 0)
     
     # print out train configuration
     print('\nTraining configuration dict:')
