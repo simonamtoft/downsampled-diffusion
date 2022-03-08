@@ -101,11 +101,11 @@ class TrainerDDPM(Trainer):
     @torch.no_grad()
     def sample(self) -> torch.Tensor:
         """Generate n_images samples from the EMA model."""
-        batches = num_to_groups(self.n_samples, self.batch_size)
-        all_images_list = list(map(lambda n: self.model.sample(batch_size=n), batches))
+        # batches = num_to_groups(self.n_samples, self.batch_size)
+        # all_images_list = list(map(lambda n: self.model.sample(batch_size=n), batches))
         # all_images_list = list(map(lambda n: self.ema_model.sample(batch_size=n), batches))
-        samples = torch.cat(all_images_list, dim=0)
-        return samples
+        # samples = torch.cat(all_images_list, dim=0)
+        return self.model.sample(self.n_samples)
 
     @torch.no_grad()
     def recon(self, x:torch.Tensor) -> torch.Tensor:
@@ -115,13 +115,9 @@ class TrainerDDPM(Trainer):
 
     @torch.no_grad()
     def log_wandb(self, x:torch.Tensor, commit:bool=True) -> None:
-        """Log reconstruction and sample images along with a training checkpoint to wandb."""
-
-        # generate samples and reconstructions
+        """Log reconstruction and sample images to wandb."""
         samples = min_max_norm(self.sample()) if self.log_sample else None
         recon = min_max_norm(self.recon(x)) if self.log_recon else None
-
-        # get log dict etc.
         log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
         log_images(
             x_recon=recon, 
@@ -184,6 +180,45 @@ class TrainerDDPM(Trainer):
 class TrainerDownsampleDDPM(TrainerDDPM):
     def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
+
+    @torch.no_grad()
+    def log_wandb(self, x:torch.Tensor, commit:bool=True) -> None:
+        """Log reconstruction and sample images, for both original and latent space to wandb."""
+        # generate samples and reconstructions
+        x_recon, z_recon = self.recon(x)
+        x_sample, z_sample = self.sample()
+        log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
+        
+        # convert latent samples and recon to single channel
+        # and set shape to be N x 1 x H x W
+        z_recon = z_recon[:, 0, None]
+        z_sample = z_sample[:, 0, None]
+        
+        print('\n\nSHAPES:')
+        print(z_recon.shape, z_sample.shape)
+        print('\n\n')
+        
+        # log original image space reconstructions and samples to wandb
+        log_images(
+            x_recon=x_recon,
+            x_sample=x_sample,
+            folder=self.res_folder,
+            name=f'{log_name}.png',
+            nrow=self.n_rows,
+            commit=False
+        )
+        
+        # log latent reconstructions and samples to wandb
+        log_images(
+            x_recon=z_recon,
+            x_sample=z_sample,
+            folder=self.res_folder,
+            name=f'{log_name}.png',
+            nrow=self.n_rows,
+            rname='recon_latent',
+            sname='sample_latent',
+            commit=commit
+        )
 
     def train_loop(self):
         while self.step < self.n_steps:
