@@ -125,12 +125,11 @@ class DDPM(nn.Module):
         return mean, variance, log_variance
 
     @torch.no_grad()
-    def reconstruct(self, x:torch.tensor, n:int):
+    def reconstruct(self, x:torch.tensor, n:int) -> torch.tensor:
         """
         Reconstructs x_hat from the noiseless input x, 
         for increasing time-scales 0 to T linearly spaced.
         """
-        # only produce n reconstructions
         assert x.shape[0] >= n
         x = x[:n]
         
