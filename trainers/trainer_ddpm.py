@@ -211,7 +211,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             train_obj = self.loss_handle(obj_list)
             train_latent = self.loss_handle(lat_list)
             train_recon = self.loss_handle(rec_list)
-            self.losses.append(train_obj)
+            self.train_losses.append(train_obj)
             is_log = self.step != 0 and self.step % self.logging_every == 0
             wandb.log({
                 'train_obj': train_obj,
