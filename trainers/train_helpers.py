@@ -116,7 +116,7 @@ def min_max_norm(x):
 def min_max_batch_norm(x:torch.tensor):
     """
     Returns the min-max normalization per image 
-    instead of over the entire batch of x.
+    instead of over the entire batch of images.
     """
     b = x.shape[0]
     x_min = x.view(b, -1).min(dim=1).values[:, None, None, None]
