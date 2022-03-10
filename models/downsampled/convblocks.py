@@ -92,16 +92,16 @@ class SimpleUpConv(BaseConv):
 
 
 class ConvResBlock(nn.Module):
-    def __init__(self, in_channels:int, out_channels:int, upsample:bool=False, dropout:float=0, residual:bool=False):
+    def __init__(self, dim:int, in_channels:int, out_channels:int, upsample:bool=False, dropout:float=0, residual:bool=False):
         super().__init__()
         self.upsample = upsample
         self.residual = residual # set to false for start/end
 
         # convolutional layers
-        self.c1 = get_1x1(in_channels, in_channels)
-        self.c2 = get_3x3(in_channels, out_channels)
-        self.c3 = get_3x3(out_channels, out_channels)
-        self.c4 = get_1x1(out_channels, out_channels)
+        self.c1 = get_1x1(in_channels, dim)
+        self.c2 = get_3x3(dim, dim)
+        self.c3 = get_3x3(dim, dim)
+        self.c4 = get_1x1(dim, out_channels)
         
         # dropout layer
         self.drop = nn.Dropout2d(p=dropout)
@@ -127,17 +127,19 @@ class ConvResBlock(nn.Module):
         return out
 
 
-class UnetBase(BaseConv):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
-        super().__init__(dim, in_channels, n_downsamples+1)
+class UnetBase(nn.Module):
+    def __init__(self, dim:int=8, in_channels:int=3, out_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
+        super().__init__()
+        dims = [in_channels, *(np.ones(n_downsamples).astype(int) * dim), out_channels]
+        self.in_out = list(zip(dims[:-1], dims[1:]))
         self.dropout = dropout
         self.n_groups = n_groups
         self.num_resolutions = len(self.in_out)
 
 
 class UnetDown(UnetBase):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
-        super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
+    def __init__(self, dim:int=8, in_channels:int=3, out_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
+        super().__init__(dim, in_channels, out_channels, n_downsamples, n_groups, dropout)
         self.downs = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(self.in_out):
             is_last = ind >= (self.num_resolutions - 1)
@@ -161,8 +163,8 @@ class UnetDown(UnetBase):
 
 
 class UnetUp(UnetBase):
-    def __init__(self, dim:int=8, in_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
-        super().__init__(dim, in_channels, n_downsamples, n_groups, dropout)
+    def __init__(self, dim:int=8, in_channels:int=3, out_channels:int=3, n_downsamples:int=1, n_groups:int=1, dropout:float=0):
+        super().__init__(dim, in_channels, out_channels, n_downsamples, n_groups, dropout)
         self.ups = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(self.in_out[1:])):
             is_last = ind >= (self.num_resolutions - 1)

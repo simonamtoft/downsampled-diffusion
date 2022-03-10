@@ -14,7 +14,8 @@ def get_upsampling(config:dict, shape:tuple):
     assert shape[0] == 1 or shape[0] == 3
     in_channels = shape[0]
     mode = config['d_mode']
-    dim = config['unet_in']
+    dim = config['d_chans']
+    out_channels = config['unet_in']
     dropout = config['d_dropout']
     n_down = config['n_downsamples']
     
@@ -22,11 +23,11 @@ def get_upsampling(config:dict, shape:tuple):
         size = (shape[1], shape[2])
         return get_interpolate(size)
     elif mode == 'convolutional':
-        return SimpleUpConv(dim, in_channels, n_down)
+        return SimpleUpConv(out_channels, in_channels, n_down)
     elif mode == 'convolutional_unet':
-        return UnetUp(dim, in_channels, n_down, dropout=dropout)
+        return UnetUp(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(dim, in_channels, upsample=True, dropout=dropout)
+        return ConvResBlock(dim, out_channels, in_channels, upsample=True, dropout=dropout)
     else:
         raise NotImplementedError(f'Upsampling method for "{mode}" not implemented!')
 
@@ -42,7 +43,8 @@ def get_downsampling(config:dict, shape:tuple):
     assert shape[0] == 1 or shape[0] == 3
     in_channels = shape[0]
     mode = config['d_mode']
-    dim = config['unet_in']
+    dim = config['d_chans']
+    out_channels = config['unet_in']
     dropout = config['d_dropout']
     n_down = config['n_downsamples']
     
@@ -52,10 +54,10 @@ def get_downsampling(config:dict, shape:tuple):
         assert size[0] % 2 == 0, 'result from downsampling should have even dimensions.'
         return get_interpolate(size)
     elif mode == 'convolutional':
-        return SimpleDownConv(dim, in_channels, n_down)
+        return SimpleDownConv(out_channels, in_channels, n_down)
     elif mode == 'convolutional_unet':
-        return UnetDown(dim, in_channels, n_down, dropout=dropout)
+        return UnetDown(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(in_channels, dim, upsample=False, dropout=dropout)
+        return ConvResBlock(dim, in_channels, out_channels, upsample=False, dropout=dropout)
     else:
         raise NotImplementedError(f'Downsampling method for "{mode}" not implemented!')
