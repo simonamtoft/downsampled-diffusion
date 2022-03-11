@@ -66,7 +66,9 @@ class Trainer(object):
         self.loss_handle = nats_mean
         # else:
         #     self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
-    
+        # list holding training objective for each train step
+        self.train_losses = []
+        
         # dimensionality of data
         self.x_dim = int(self.n_channels * self.image_size * self.image_size)
 
@@ -76,33 +78,32 @@ class Trainer(object):
         # setup optimizer
         self.opt = Adam(self.model.parameters(), lr=self.lr)      
 
-    def save_losses(self, losses:list) -> None:
+    def save_losses(self) -> None:
         """Save loss results to file"""
         filename = f'{self.res_folder}/loss_{self.name}_{self.config["dataset"]}.json'
         print(f'Saving losses to file {filename}')
         with open(filename, 'w') as f:
-            json.dump(losses, f)
+            json.dump(self.train_losses, f)
     
     def init_wandb(self) -> None:
         # check if we are resuming run
         # https://docs.wandb.ai/guides/track/advanced/resuming
         if 'wandb_id' in self.config:
-            wandb_id = self.config['wandb_id']
+            self.wandb_id = self.config['wandb_id']
         else:
-            wandb_id = wandb.util.generate_id()
-            self.config['wandb_id'] = wandb_id
+            self.wandb_id = wandb.util.generate_id()
+            self.config['wandb_id'] = self.wandb_id
 
         # Instantiate wandb run
-        wandb.init(project=self.wandb_name, config=self.config, resume='allow', id=wandb_id)
+        wandb.init(project=self.wandb_name, config=self.config, resume='allow', id=self.wandb_id)
         wandb.watch(self.model)
     
     def finalize(self) -> None:
         """Finalize training by saving the model to wandb and finishing the wandb run."""
-        save_path = f'{self.res_folder}/model_{self.name}.pt'
-        self.save_checkpoint(save_path)
-        wandb.save(save_path)
+        self.save_checkpoint()
+        wandb.save(self.checkpoint_name)
         wandb.finish()
-        os.remove(save_path)
+        os.remove(self.checkpoint_name)
         print(f"Training of {self.name} completed!")
     
     def train(self) -> torch.Tensor:
