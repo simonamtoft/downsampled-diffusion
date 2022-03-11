@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
-    log_images, lambda_lr, min_max_norm
+    log_images, lambda_lr, min_max_norm_image
 
 
 class TrainerDRAW(Trainer):
@@ -43,7 +43,7 @@ class TrainerDRAW(Trainer):
         x_sample = torch.reshape(x_sample, log_shape)
         
         # perform min-max normalization on samples
-        x_sample = min_max_norm(x_sample)
+        x_sample = min_max_norm_image(x_sample)
     
         # log recon and sample
         name = f'{epoch}_{self.name}_{self.config["dataset"]}'
