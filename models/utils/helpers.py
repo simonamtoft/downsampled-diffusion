@@ -40,20 +40,25 @@ def noise_like(shape, device, repeat=False):
     return repeat_noise() if repeat else noise()
 
 
-def flat_bits(tensor:torch.tensor):
+def reduce_mean(x:torch.tensor) -> torch.tensor:
+    """
+    Reduce input x to a single dimension tensor 
+    by taking the mean over all non-batch dimensions.
+    """
+    return x.mean(dim=list(range(1, len(x.shape))))
+
+
+def reduce_sum(x:torch.tensor) -> torch.tensor:
+    """
+    Reduce input x to a single dimension tensor 
+    by taking the sum over all non-batch dimensions.
+    """
+    return x.sum(dim=list(range(1, len(x.shape))))
+
+
+def flat_bits(x:torch.tensor):
     """
     Take the mean over all non-batch dimensions, and scale by log(2).
     Returns the bits per dim of the input tensor.
     """
-    tensor = tensor.mean(dim=list(range(1, len(tensor.shape))))
-    return tensor / np.log(2.)
-
-
-def flat_nats(tensor:torch.tensor):
-    """
-    Returns the nats value of the input tensor. 
-    Done by summing over all non-batch dimensions.
-    """
-    # tensor = tensor.sum(1)
-    # return tensor.mean(dim=list(range(1, len(tensor.shape))))
-    return tensor.sum(dim=list(range(1, len(tensor.shape))))
+    return reduce_mean(x) / np.log(2.)
