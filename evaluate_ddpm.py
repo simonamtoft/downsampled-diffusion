@@ -4,7 +4,7 @@ from utils import get_dataloader, get_color_channels
 
 DATA_ROOT = '../data'
 device = 'cuda'
-saved_model = 'cifar_linear_var0.pt'
+saved_model = 'checkpoint_ddpm_vlb_paper_1.pt'
 
 # load saved state dict of model and its config file
 save_data = torch.load(f'./results/{saved_model}')
@@ -16,11 +16,7 @@ test_loader = get_dataloader(config, data_root=DATA_ROOT, device=device, train=F
 color_channels = get_color_channels(config['dataset'])
 
 # Instantiate model
-latent_model = Unet(
-    dim=config['unet_chan'],
-    in_channels=color_channels,
-    dim_mults=config['unet_dims'],
-)
+latent_model = Unet(config)
 model = DDPM(config, latent_model, device, color_channels)
 
 # load the state dict into the model
