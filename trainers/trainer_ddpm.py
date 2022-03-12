@@ -1,40 +1,13 @@
-import os
-import copy
-import numpy as np
 import wandb
 import torch
+from torch import Tensor
+import numpy as np
 
 from utils import min_max_norm_image
+from .ema import EMA
 from .trainer import Trainer
-from .train_helpers import cycle, num_to_groups, \
-    log_images, delete_if_exists
-    
-
-class EMA():
-    def __init__(self, beta:float):
-        """Exponential Moving Average of model parameters.
-
-        Args:
-            beta (float):    The decaying parameter
-        """
-        super().__init__()
-        self.beta = beta
-
-    def update_model_average(self, ma_model, current_model):
-        """
-        Update the parameters of the EMA model with the new parameters of the model used in training.
-        
-        Args:
-            ma_model (nn.module):   The EMA model 
-        """
-        for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
-            old_weight, up_weight = ma_params.data, current_params.data
-            ma_params.data = self.update_average(old_weight, up_weight)
-
-    def update_average(self, old:torch.Tensor, new:torch.Tensor) -> torch.Tensor:
-        if old is None:
-            return new
-        return old * self.beta + (1 - self.beta) * new
+from .train_helpers import cycle, log_images, \
+    delete_if_exists
 
 
 class TrainerDDPM(Trainer):
@@ -60,21 +33,10 @@ class TrainerDDPM(Trainer):
         # EMA model for DDPM training...
         # self.step_start_ema = 2000
         # self.update_ema_every = 10
-        # self.ema = EMA(config['ema'])
-        # self.ema_model = copy.deepcopy(self.model)
-        # self.reset_ema()
-
+        # self.model = EMA(self.model, config['ema_decay'])
+        
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
-
-    # def reset_ema(self) -> None:
-    #     self.ema_model.load_state_dict(self.model.state_dict())
-
-    # def step_ema(self) -> None:
-    #     if self.step < self.step_start_ema:
-    #         self.reset_ema()
-    #         return None
-    #     self.ema.update_model_average(self.ema_model, self.model)
 
     def save_checkpoint(self) -> None:
         """Save the checkpoint of the training run locally and to wandb."""
@@ -89,7 +51,7 @@ class TrainerDDPM(Trainer):
         torch.save(save_data, self.checkpoint_name)
         wandb.save(self.checkpoint_name, policy='live')
     
-    def load_checkpoint(self, checkpoint) -> None:
+    def load_checkpoint(self, checkpoint:dict) -> None:
         """Load the state dict into the instantiated model and ema model."""
         self.opt.load_state_dict(checkpoint['optimizer'])
         self.model.load_state_dict(checkpoint['model'])
@@ -99,17 +61,17 @@ class TrainerDDPM(Trainer):
         self.step = checkpoint['step']
 
     @torch.no_grad()
-    def sample(self) -> torch.Tensor:
+    def sample(self) -> Tensor:
         """Generate n_images samples from the EMA model."""
         return self.model.sample(self.n_samples)
 
     @torch.no_grad()
-    def recon(self, x:torch.Tensor) -> torch.Tensor:
+    def recon(self, x:Tensor) -> Tensor:
         """Generate n_images reconstructions from the model."""
         return self.model.reconstruct(x, self.n_samples)
 
     @torch.no_grad()
-    def log_wandb(self, x:torch.Tensor, commit:bool=True) -> None:
+    def log_wandb(self, x:Tensor, commit:bool=True) -> None:
         """Log reconstruction and sample images to wandb."""
         samples = min_max_norm_image(self.sample())
         recon = min_max_norm_image(self.recon(x))
@@ -155,9 +117,9 @@ class TrainerDDPM(Trainer):
             self.opt.step()
             self.opt.zero_grad()
 
-            # update EMA
+            # update EMA parameters
             # if self.step % self.update_ema_every == 0:
-            #     self.step_ema()
+            #     self.model.update()
 
             ####    EVAL STEP   ####
             self.model.eval()
@@ -175,7 +137,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
 
     @torch.no_grad()
-    def log_wandb(self, x:torch.Tensor, commit:bool=True) -> None:
+    def log_wandb(self, x:Tensor, commit:bool=True) -> None:
         """Log reconstruction and sample images, for both original and latent space to wandb."""
         # generate samples and reconstructions
         x_recon, z_recon = self.recon(x)
@@ -253,9 +215,9 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             self.opt.step()
             self.opt.zero_grad()
 
-            # update EMA
+            # update EMA parameters
             # if self.step % self.update_ema_every == 0:
-            #     self.step_ema()
+            #     self.model.update()
 
             ####    EVAL STEP   ####
             self.model.eval()
