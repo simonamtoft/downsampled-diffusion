@@ -64,7 +64,7 @@ class DownsampleDDPM(DDPM):
         eps_hat = self.latent_model(z_t, t)
 
         # compute latent space reconstruction
-        z_recon = self.predict_x_from_eps(z_t, t, eps_hat)
+        z_recon = self.predict_x_from_eps(z_t, t, eps_hat, clip=False)
 
         # upsample reconstruction
         x_recon = self.upsample(z_recon)
@@ -84,17 +84,18 @@ class DownsampleDDPM(DDPM):
         x_sample = self.upsample(z_sample)
         return x_sample, z_sample
 
-    def rescaled_downsample(self, x:tensor) -> tensor:
+    def rescaled_downsample(self, x:tensor, rescale:bool=False) -> tensor:
         """Downsample input x to z-space and rescale output z to be in [-1, 1]"""
         # downsample input
         z = self.downsample(x)
         
         # rescale to [-1, 1] as DDPM expects
-        z = min_max_norm_image(z) * 2. - 1.
+        if rescale:
+            z = min_max_norm_image(z) * 2. - 1.
         return z
 
     def loss_recon(self, x:tensor, x_hat:tensor, t:tensor) -> tensor:
-        loss = self.get_loss(x, x_hat).mean(dim=[1, 2, 3])
+        loss = self.flatten_loss(self.get_loss(x, x_hat))
         loss = torch.where(t < self.t_rec_max, loss, torch.zeros_like(loss))
         return loss
 
@@ -111,7 +112,7 @@ class DownsampleDDPM(DDPM):
         L_ddpm = self.loss_ddpm(eps, eps_hat, t)
         
         # compute image / reconstruction loss
-        z_hat = self.predict_x_from_eps(z_t, t, eps_hat)
+        z_hat = self.predict_x_from_eps(z_t, t, eps_hat, clip=False)
         x_hat = self.upsample(z_hat)
         L_rec = self.loss_recon(x, x_hat, t)
 

@@ -13,7 +13,6 @@ class Unet(nn.Module):
         Originally ported from:
         https://github.com/lucidrains/denoising-diffusion-pytorch/
         """
-        # dim:int, out_dim:int=None, dim_mults:tuple=(1, 2, 4, 8), in_channels:int=3, 
         super().__init__()
         
         # extract fields from config

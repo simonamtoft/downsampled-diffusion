@@ -24,14 +24,15 @@ CONFIG_MODEL = {
         'unet_dims': (1, 2, 2, 2),  # iddpm paper: (1, 2, 2, 2) for 32x32, (1, 2, 3, 4) for 64x64
         'unet_dropout': 0.3,        # iddpm paper: 0.1 for linear, 0.3 for cosine
         'T': 1000,                  # iddpm paper: 4000, ddpm: 1000
-        'loss_type': 'vlb',         # simple, vlb, hybrid
+        'loss_type': 'simple',      # simple, vlb, hybrid
         'beta_schedule': 'cosine',  # linear, cosine, sqrt_linear, sqrt
-        # 'ema': 0.999,             # iddpm + ddpm: 0.9999
+        'ema_decay': 0.995,         # iddpm + ddpm: 0.9999
     },
     'dddpm': {
         # alter some ddpm parameters
         'unet_chan': 64,            # iddpm paper: 128
         'unet_dims': (1, 2, 4),
+        'unet_dropout': 0.3,
         # set mode of down-up sampling architecture.
         # options: 
         #   deterministic
@@ -44,9 +45,9 @@ CONFIG_MODEL = {
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
         't_rec_max': 500,
-        'unet_in': 2,
+        'unet_in': 4,
         'd_dropout': 0.1,
-        'd_chans': 32,
+        'd_chans': 16,
     },
     'draw': {
         'h_dim': 400,

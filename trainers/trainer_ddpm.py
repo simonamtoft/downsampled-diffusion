@@ -211,6 +211,9 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 'train_recon': train_recon
             }, commit=(not is_log))
 
+            # print('\nupsample:', self.model.upsample.ups[0][0].block1.block[0].weight.sum())
+            # print('downsample:', self.model.downsample.downs[0][0].block1.block[0].weight.sum())
+            
             # update gradients
             self.opt.step()
             self.opt.zero_grad()

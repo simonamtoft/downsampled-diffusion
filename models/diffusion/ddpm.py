@@ -44,8 +44,8 @@ class DDPM(nn.Module):
         
         # compute loss as L2 (MSE), and flatten with mean or sum
         self.get_loss = partial(l2_loss, reduction='none')  # don't take mean
-        self.flatten_loss = reduce_mean
-        # self.flatten_loss = reduce_sum
+        # self.flatten_loss = reduce_mean
+        self.flatten_loss = reduce_sum
         
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
@@ -139,17 +139,17 @@ class DDPM(nn.Module):
 
         # return reconstruction
         eps_hat = self.latent_model(x_0, t)
-        x_recon = self.predict_x_from_eps(x_0, t, eps_hat)
+        x_recon = self.predict_x_from_eps(x_0, t, eps_hat, clip=False)  # true before
         return x_recon
 
-    def predict_x_from_eps(self, x_t:tensor, t:tensor, eps:tensor):
+    def predict_x_from_eps(self, x_t:tensor, t:tensor, eps:tensor, clip:bool=True):
         """Predict original data from noise (eps) and noisy data x_t for step t."""
         assert x_t.shape == eps.shape
         x = (
             extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
             extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * eps
         )
-        if self.clip_denoised:
+        if clip:
             x.clamp_(*self.clip_range)
         return x
 
@@ -192,7 +192,7 @@ class DDPM(nn.Module):
             A tuple of (mean, variance, log_variance) of the distribution p(x_{t-1} | x_t).
         """
         eps_hat = self.latent_model(x_t, t)
-        x_recon = self.predict_x_from_eps(x_t, t, eps_hat)
+        x_recon = self.predict_x_from_eps(x_t, t, eps_hat, clip=True)
         mean, variance, log_variance = self.q_posterior(x_recon, x_t, t)
         return mean, variance, log_variance
 
