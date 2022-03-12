@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import tensor
 import torch.nn.functional as F
 from functools import partial
 from models.unet.blocks import ResnetBlock, Residual, LinearAttention, \
@@ -65,7 +66,7 @@ class BaseConv(nn.Module):
         dims = [in_channels, *(np.ones(n_downsamples).astype(int) * dim)]
         self.in_out = list(zip(dims[:-1], dims[1:]))
     
-    def forward(self, x:torch.Tensor) -> torch.Tensor:
+    def forward(self, x:tensor) -> tensor:
         return self.conv(x)
 
 
@@ -106,7 +107,7 @@ class ConvResBlock(nn.Module):
         # dropout layer
         self.drop = nn.Dropout2d(p=dropout)
 
-    def forward(self, x:torch.Tensor) -> torch.Tensor:
+    def forward(self, x:tensor) -> tensor:
         # perform convolutions
         x_hat = self.c1(F.gelu(x))
         x_hat = self.c2(F.gelu(x_hat))
@@ -150,7 +151,7 @@ class UnetDown(UnetBase):
                 Downsample(dim_out) if not is_last else nn.Identity()
             ]))
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         # h = []
         for resnet, resnet2, attn, downsample in self.downs:
             x = resnet(x, None)
@@ -179,7 +180,7 @@ class UnetUp(UnetBase):
             nn.Conv2d(dim, in_channels, 1)
         )
 
-    def forward(self, x): #, h=None
+    def forward(self, x:tensor) -> tensor: #, h=None
         for resnet, resnet2, attn, upsample in self.ups:
             # x = torch.cat((x, h.pop()), dim=1)
             x = resnet(x, None)

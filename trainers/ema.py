@@ -1,6 +1,5 @@
 import torch
-import torch.nn as nn
-from torch import Tensor
+from torch import nn, tensor
 from copy import deepcopy
 from collections import OrderedDict
 
@@ -48,7 +47,7 @@ class EMA(nn.Module):
         for name, buffer in model_buffers.items():
             shadow_buffers[name].copy_(buffer)
 
-    def forward(self, x:Tensor) -> Tensor:
+    def forward(self, x:tensor) -> tensor:
         """
         At train time forward the trained model.
         At test time forward the shadow model.
@@ -59,14 +58,14 @@ class EMA(nn.Module):
             return self.shadow(x)
     
     @torch.no_grad()
-    def sample(self, n:int) -> Tensor:
+    def sample(self, n:int) -> tensor:
         if self.training:
             return self.model.sample(n)
         else:
             return self.shadow.sample(n)
     
     @torch.no_grad()
-    def reconstruct(self, x:Tensor, n:int) -> Tensor:
+    def reconstruct(self, x:tensor, n:int) -> tensor:
         if self.training:
             return self.model.reconstruct(x, n)
         else:

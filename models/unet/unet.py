@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, tensor
 from models.utils import exists, default
 from models.unet.blocks import SinusoidalPosEmb, \
     Mish, ResnetBlock, Residual, LinearAttention, \
@@ -72,7 +72,7 @@ class Unet(nn.Module):
             nn.Conv2d(dim, in_channels, 1)
         )
 
-    def forward(self, x, time):
+    def forward(self, x:tensor, time:tensor) -> tensor:
         # Instantiate time embedding 
         t = self.time_mlp(time) if exists(self.time_mlp) else None
 

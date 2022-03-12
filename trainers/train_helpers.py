@@ -1,6 +1,7 @@
-import torch
 import os
 import wandb
+import torch
+from torch import tensor
 from torchvision import utils
 
 
@@ -47,7 +48,7 @@ class DeterministicWarmup(object):
         return self.t
 
 
-def bce_loss(r:torch.Tensor, x:torch.Tensor):
+def bce_loss(r:tensor, x:tensor) -> tensor:
     """Binary Cross Entropy Loss"""
     return -torch.sum(x * torch.log(r + 1e-8) + (1 - x) * torch.log(1 - r + 1e-8), dim=-1)
 
@@ -57,7 +58,7 @@ def delete_if_exists(path:str):
         os.remove(path)
 
 
-def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str='.', name:str='tmp', nrow:int=None, rname:str=None, sname:str=None, commit:bool=True):
+def log_images(x_recon:tensor=None, x_sample:tensor=None, folder:str='.', name:str='tmp', nrow:int=None, rname:str=None, sname:str=None, commit:bool=True):
     """Log reconstruction and sample images to wandb."""
 
     # instantiate

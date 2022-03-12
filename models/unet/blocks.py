@@ -1,6 +1,6 @@
 import math
 import torch
-from torch import nn
+from torch import nn, tensor
 from einops import rearrange
 import torch.nn.functional as F
 from models.utils import exists
@@ -20,7 +20,7 @@ class SinusoidalPosEmb(nn.Module):
         super().__init__()
         self.dim = dim
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         device = x.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
@@ -31,7 +31,7 @@ class SinusoidalPosEmb(nn.Module):
 
 
 class Mish(nn.Module):
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         return x * torch.tanh(F.softplus(x))
 
 
@@ -40,7 +40,7 @@ class Upsample(nn.Module):
         super().__init__()
         self.conv = nn.ConvTranspose2d(dim, dim, 4, 2, 1)
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         return self.conv(x)
 
 
@@ -49,7 +49,7 @@ class Downsample(nn.Module):
         super().__init__()
         self.conv = nn.Conv2d(dim, dim, 3, 2, 1)
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         return self.conv(x)
 
 
@@ -60,7 +60,7 @@ class LayerNorm(nn.Module):
         self.g = nn.Parameter(torch.ones(1, dim, 1, 1))
         self.b = nn.Parameter(torch.zeros(1, dim, 1, 1))
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         std = torch.var(x, dim=1, unbiased=False, keepdim=True).sqrt()
         mean = torch.mean(x, dim=1, keepdim=True)
         return (x - mean) / (std + self.eps) * self.g + self.b
@@ -72,7 +72,7 @@ class PreNorm(nn.Module):
         self.fn = fn
         self.norm = LayerNorm(dim)
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         x = self.norm(x)
         return self.fn(x)
 
@@ -86,7 +86,7 @@ class Block(nn.Module):
             Mish()
         )
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         return self.block(x)
 
 
@@ -108,7 +108,7 @@ class ResnetBlock(nn.Module):
         self.block2 = Block(dim_out, dim_out, groups)
         self.res_conv = nn.Conv2d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
 
-    def forward(self, x, time_emb):
+    def forward(self, x:tensor, time_emb:tensor) -> tensor:
         h = self.block1(x)
 
         if exists(self.mlp):
@@ -129,7 +129,7 @@ class LinearAttention(nn.Module):
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=False)
         self.to_out = nn.Conv2d(hidden_dim, dim, 1)
 
-    def forward(self, x):
+    def forward(self, x:tensor) -> tensor:
         b, c, h, w = x.shape
         qkv = self.to_qkv(x)
         q, k, v = rearrange(qkv, 'b (qkv heads c) h w -> qkv b heads c (h w)', heads=self.heads, qkv=3)
