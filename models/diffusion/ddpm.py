@@ -10,9 +10,9 @@ import torch
 import torch.nn as nn
 from functools import partial
 
+from utils import flat_bits, reduce_mean, reduce_sum
 from models.utils import discretized_gaussian_log_likelihood, \
-    l1_loss, l2_loss, normal_kl, extract, flat_nats, noise_like, \
-    flat_bits
+    l1_loss, l2_loss, normal_kl, extract, noise_like
 from .beta_schedule import make_beta_schedule
 
 OBJETIVE_NAMES = ['simple', 'hybrid', 'vlb']
@@ -41,35 +41,31 @@ class DDPM(nn.Module):
         self.lambda_ = 0.0001
         assert self.L in OBJETIVE_NAMES
         
-        # compute loss as L2 (MSE)
+        # compute loss as L2 (MSE), and flatten with mean or sum
         self.get_loss = partial(l2_loss, reduction='none')  # don't take mean
+        self.flatten_loss = reduce_mean
+        # self.flatten_loss = reduce_sum
         
-        # determine how to flatten
-        #   color images:   Flatten for bits/dim
-        #   binary images:  Flatten for nats
-        if self.in_channels == 3:
-            self.flat_loss = flat_bits
-        elif self.in_channels == 1:
-            self.flat_loss = flat_nats
-        else:
-            raise ValueError(f'DDPM not implemented for {self.in_channels} color channels.')
-
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)
+        assert (betas > 0).all() and (betas <= 1).all(), 'betas must be in (0, 1]'
 
         # Compute alphas from betas
         alphas = 1. - betas                                         # alpha_t
         alphas_cumprod = np.cumprod(alphas, axis=0)                 # alpha_bar_t
         alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])    # alpha_bar_{t-1}
-        # alphas_cumprod_prev = np.append(0.999999, alphas_cumprod[:-1])    # alpha_bar_{t-1}
 
         # compute variances and mean coefficients for the posterior q(x_{t-1} | x_t, x)
+        # equation 6 and 7 in the DDPM paper
         posterior_variance = (1. - alphas_cumprod_prev) / (1. - alphas_cumprod) * betas
         coef_x0 = np.sqrt(alphas_cumprod_prev) * betas / (1. - alphas_cumprod)
         coef_xt = np.sqrt(alphas) * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
-
-        # fix this to properly calculate the likelihood term L_0
-        posterior_variance[0] = posterior_variance[1]
+        
+        # clip the log variances since the posterior variance is 0 at the
+        # beginning of the diffusion chain.
+        posterior_log_var_clip = np.log(
+            np.append(posterior_variance[1], posterior_variance[1:])
+        )
 
         # ensure variables are pytorch tensors with dtype float32
         to_torch = partial(torch.tensor, dtype=torch.float32)
@@ -79,18 +75,16 @@ class DDPM(nn.Module):
         self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
         self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
 
-        # calculations for diffusion q(x_t | x_{t-1}) and others
+        # register buffer calculations for diffusion q(x_t | x_{t-1}) and others
         self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
         self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1. - alphas_cumprod)))
         self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1. - alphas_cumprod)))
         self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod)))
         self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod - 1)))
 
-        # calculations for posterior q(x_{t-1} | x_t, x)
+        # register buffer calculations for posterior q(x_{t-1} | x_t, x)
         self.register_buffer('posterior_variance', to_torch(posterior_variance))
-        self.register_buffer('posterior_log_variance_clipped', to_torch(
-            np.log(np.maximum(posterior_variance, 1e-20))
-        ))
+        self.register_buffer('posterior_log_variance_clipped', to_torch(posterior_log_var_clip))
         self.register_buffer('posterior_mean_coef1', to_torch(coef_x0))
         self.register_buffer('posterior_mean_coef2', to_torch(coef_xt))
         
@@ -105,11 +99,11 @@ class DDPM(nn.Module):
         vlb_weights[0] = vlb_weights[1]
         self.register_buffer('vlb_weights', vlb_weights, persistent=False)
         assert not torch.isnan(self.vlb_weights).all()
-        assert posterior_variance[0] != 0
 
     def q_mean_variance(self, x:torch.tensor, t:torch.tensor):
         """
         Get the distribution q(x_t | x).
+        Equation 4 in the DDPM paper.
         
         Args:
             x (torch.tensor):   The noiseless input (N x C x H x W).
@@ -272,6 +266,21 @@ class DDPM(nn.Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * eps
         )
 
+    def loss_ddpm(self, eps:torch.tensor, eps_hat:torch.tensor, t:torch.tensordot) -> torch.tensor:
+        """Compute the loss for the DDPM, either as simple, vlb or hybrid loss."""
+        # Compute difference between noise and model output
+        # and reduce to a single value per batch element
+        loss = self.flatten_loss(self.get_loss(eps, eps_hat))
+
+        # compute objective function
+        if self.L == 'simple':
+            obj = loss.mean()
+        elif self.L == 'vlb':
+            obj = (self.vlb_weights[t] * loss).mean()
+        elif self.L == 'hybrid':
+            obj = (loss + self.lambda_ * self.vlb_weights[t] * loss).mean()
+        return obj
+    
     def losses(self, x:torch.tensor, t:torch.tensor):
         """
         Compute the objective for a single training/validation step. 
@@ -289,7 +298,6 @@ class DDPM(nn.Module):
         """
         
         # Generate noise
-        # eps = default(eps, lambda: torch.randn_like(x))
         eps = torch.randn_like(x)
 
         # sample noisy x from q distribution for step t
@@ -297,32 +305,8 @@ class DDPM(nn.Module):
 
         # get the model output for diffusion step t
         eps_hat = self.latent_model(x_t, t)
-        
-        # Compute difference between noise and model output
-        loss = self.get_loss(eps, eps_hat).mean(dim=[1, 2, 3])
-        
-        # Compute the 3 different losses
-        L_simple = loss.mean()
-        return L_simple
-        # L_vlb = (self.vlb_weights[t] * loss).mean()
-        # L_hybrid = L_simple + self.lambda_ * L_vlb
-        
-        # compute objective function
-        # if self.L == 'simple':
-        #     obj = L_simple
-        # elif self.L == 'vlb':
-        #     obj = L_vlb
-        # elif self.L == 'hybrid':
-        #     obj = L_hybrid
-        
-        # store losses in a dict
-        # loss_dict = {
-        #     'L_simple': L_simple,
-        #     'L_vlb': L_vlb,
-        #     'L_hybrid': L_hybrid
-        # }
-        
-        # return obj, loss_dict
+
+        return self.loss_ddpm(eps, eps_hat, t)
     
     def vlb_terms(self, x:torch.tensor, x_t:torch.tensor, t:torch.tensor):
         """
@@ -358,14 +342,14 @@ class DDPM(nn.Module):
         # compute kl in bits/dim
         # KL( q(x{t-1} | xt, x0) || p(x{t-1} | xt) )
         kl = normal_kl(true_mean, true_log_var, pred_mean, pred_log_var)
-        kl = self.flat_loss(kl)
-
+        kl = flat_bits(kl)
+        
         # compute negative log-likelihood
         # L_0 = -log p(x_0 | x_1)
         nll = -discretized_gaussian_log_likelihood(
             x, means=pred_mean, log_scales=0.5*pred_log_var
         )
-        nll = self.flat_loss(nll)
+        nll = flat_bits(nll)
 
         # Return the loss where
         #   if t == 0: vlb = L_0 (discrete NLL)
@@ -396,7 +380,7 @@ class DDPM(nn.Module):
         
         # compute prior KL
         L_T = normal_kl(mean, log_var, 0., 0.)
-        return self.flat_loss(L_T)
+        return flat_bits(L_T)
     
     @torch.no_grad()
     def calc_vlb(self, x:torch.tensor):
@@ -438,9 +422,13 @@ class DDPM(nn.Module):
             'vlb': vlb
         }
 
+    def t_sample(self, n:int) -> torch.tensor:
+        """Sample n t's uniformly between [0, T]"""
+        return torch.randint(0, self.timesteps, (n,), device=self.device).long()
+    
     def forward(self, x:torch.tensor):
-        # select a random timestep t for each x in batch        
-        t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
-        
+        # select a random timestep t for each x in batch
+        t = self.t_sample(x.shape[0])
+
         # compute and return the training objective 
         return self.losses(x, t)
