@@ -8,7 +8,7 @@ thanks a lot for open-sourcing :)
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch import tensor
 from functools import partial
 
 from utils import flat_bits, reduce_mean, reduce_sum
@@ -69,7 +69,7 @@ class DDPM(nn.Module):
         )
 
         # ensure variables are pytorch tensors with dtype float32
-        to_torch = partial(Tensor, dtype=torch.float32)
+        to_torch = partial(tensor, dtype=torch.float32)
         
         # register buffers for alphas and betas
         self.register_buffer('betas', to_torch(betas))
@@ -101,14 +101,14 @@ class DDPM(nn.Module):
         self.register_buffer('vlb_weights', vlb_weights, persistent=False)
         assert not torch.isnan(self.vlb_weights).all()
 
-    def q_mean_variance(self, x:Tensor, t:Tensor):
+    def q_mean_variance(self, x:tensor, t:tensor):
         """
         Get the distribution q(x_t | x).
         Equation 4 in the DDPM paper.
         
         Args:
-            x (Tensor):   The noiseless input (N x C x H x W).
-            t (Tensor):   Number of diffusion steps (t=0 is the first step).
+            x (tensor):   The noiseless input (N x C x H x W).
+            t (tensor):   Number of diffusion steps (t=0 is the first step).
             
         Returns:
             A tuple (mean, variance, log_variance) consisting of the mean,
@@ -120,7 +120,7 @@ class DDPM(nn.Module):
         return mean, variance, log_variance
 
     @torch.no_grad()
-    def reconstruct(self, x:Tensor, n:int) -> Tensor:
+    def reconstruct(self, x:tensor, n:int) -> tensor:
         """
         Reconstructs x_hat from the noiseless input x, 
         for increasing time-scales 0 to T linearly spaced.
@@ -142,7 +142,7 @@ class DDPM(nn.Module):
         x_recon = self.predict_x_from_eps(x_0, t, eps_hat)
         return x_recon
 
-    def predict_x_from_eps(self, x_t:Tensor, t:Tensor, eps:Tensor):
+    def predict_x_from_eps(self, x_t:tensor, t:tensor, eps:tensor):
         """Predict original data from noise (eps) and noisy data x_t for step t."""
         assert x_t.shape == eps.shape
         x = (
@@ -153,15 +153,15 @@ class DDPM(nn.Module):
             x.clamp_(*self.clip_range)
         return x
 
-    def q_posterior(self, x:Tensor, x_t:Tensor, t:Tensor):
+    def q_posterior(self, x:tensor, x_t:tensor, t:tensor):
         """
         Compute the mean and variance of the diffusion postertior:
             q(x_{t-1} | x_t, x)
 
         Args:
-            x (Tensor):   The noiseless x
-            x_t (Tensor): The x at diffusion step t
-            t (Tensor):   The diffusion step t, where t=0 is the first step.
+            x (tensor):   The noiseless x
+            x_t (tensor): The x at diffusion step t
+            t (tensor):   The diffusion step t, where t=0 is the first step.
 
         Returns:
             A tuple (mean, variance, log_variance), that is the mean, variance 
@@ -180,13 +180,13 @@ class DDPM(nn.Module):
         log_variance = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return mean, variance, log_variance
 
-    def p_mean_variance(self, x_t:Tensor, t:Tensor):
+    def p_mean_variance(self, x_t:tensor, t:tensor):
         """
         Apply the model to get p(x_{t-1} | x_t).
         
         Args:
-            x_t (Tensor):  The (N x C x H x W) tensor at time t.
-            t (Tensor):  A one-dimensional tensor of timesteps.
+            x_t (tensor):  The (N x C x H x W) tensor at time t.
+            t (tensor):  A one-dimensional tensor of timesteps.
         
         Returns:
             A tuple of (mean, variance, log_variance) of the distribution p(x_{t-1} | x_t).
@@ -197,16 +197,16 @@ class DDPM(nn.Module):
         return mean, variance, log_variance
 
     @torch.no_grad()
-    def p_sample(self, x_t:Tensor, t:Tensor, repeat_noise:bool=False):
+    def p_sample(self, x_t:tensor, t:tensor, repeat_noise:bool=False):
         """
         Sample x_{t-1} from the model from the given timestep t.
 
         Args:
-            x_t (Tensor): The current tensor at timestep t.
-            t (Tensor):   The step value
+            x_t (tensor): The current tensor at timestep t.
+            t (tensor):   The step value
 
         Returns:
-            Tensor: A random sample from the model.
+            tensor: A random sample from the model.
         """
 
         # Get mean and log variance of the model
@@ -231,7 +231,7 @@ class DDPM(nn.Module):
             shape (tuple):  The shape of the samples (N x C x H x W)
             
         Returns:
-            Tensor:   A non-differentiable batch of samples.
+            tensor:   A non-differentiable batch of samples.
         """
         
         # start with an image of completely random noise
@@ -248,7 +248,7 @@ class DDPM(nn.Module):
         """Sample a batch of images from model."""
         return self.p_sample_loop((batch_size, *self.sample_shape))
 
-    def q_sample(self, x:Tensor, t:Tensor, eps:Tensor):
+    def q_sample(self, x:tensor, t:tensor, eps:tensor):
         """
         Diffuse the data x for a given number of diffusion steps t.
         This is done by x_t ~ q(x_t | x)
@@ -267,7 +267,7 @@ class DDPM(nn.Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * eps
         )
 
-    def loss_ddpm(self, eps:Tensor, eps_hat:Tensor, t:Tensor) -> Tensor:
+    def loss_ddpm(self, eps:tensor, eps_hat:tensor, t:tensor) -> tensor:
         """Compute the loss for the DDPM, either as simple, vlb or hybrid loss."""
         # Compute difference between noise and model output
         # and reduce to a single value per batch element
@@ -282,15 +282,15 @@ class DDPM(nn.Module):
             obj = (loss + self.lambda_ * self.vlb_weights[t] * loss).mean()
         return obj
     
-    def losses(self, x:Tensor, t:Tensor):
+    def losses(self, x:tensor, t:tensor):
         """
         Compute the objective for a single training/validation step. 
         Either returns L_simple, L_vlb or L_hybrid, according to self.L
         To get results in bits/dim, divide by log(2).
 
         Args:
-            x (Tensor):   The input data of shape (N x C x H x W).
-            t (Tensor):   A batch of t's of size N.
+            x (tensor):   The input data of shape (N x C x H x W).
+            t (tensor):   A batch of t's of size N.
 
         Returns:
             A tuple (L_simple, L_vlb), where L_simple is the L2 loss, and
@@ -309,7 +309,7 @@ class DDPM(nn.Module):
 
         return self.loss_ddpm(eps, eps_hat, t)
     
-    def vlb_terms(self, x:Tensor, x_t:Tensor, t:Tensor):
+    def vlb_terms(self, x:tensor, x_t:tensor, t:tensor):
         """
         Get a term for the variational lower-bound except for t=T.     
             L_t = KL( q(x{t-1} | xt, x) || p(x{t-1} | xt) )
@@ -317,10 +317,10 @@ class DDPM(nn.Module):
         Resulting units are nats for binary data and bits/dim for color data.
 
         Args:
-            x (Tensor):   The input data of shape (N x C x H x W).
-            x_t (Tensor): The noisy version of the input after 
+            x (tensor):   The input data of shape (N x C x H x W).
+            x_t (tensor): The noisy version of the input after 
                                 t number of diffusion steps.
-            t (Tensor):   A single timestep index (same for entire batch).
+            t (tensor):   A single timestep index (same for entire batch).
         
         Returns:
             A shape (N) tensor of negative log-likelihoods.
@@ -359,12 +359,12 @@ class DDPM(nn.Module):
         return vlb
 
     @torch.no_grad()
-    def calc_prior(self, x:Tensor):
+    def calc_prior(self, x:tensor):
         """
         Calculate the prior KL term L_T for the VLB.
         
         Args:
-            x (Tensor): The (N x C x H x W) input tensor.
+            x (tensor): The (N x C x H x W) input tensor.
         
         Returns:
             A batch of (N) KL values for L_T, one for each batch element.
@@ -384,14 +384,14 @@ class DDPM(nn.Module):
         return flat_bits(L_T)
     
     @torch.no_grad()
-    def calc_vlb(self, x:Tensor):
+    def calc_vlb(self, x:tensor):
         """
         Computes the entire variational lower-bound for the 
         entire Markov chain, measured in bits/dim for color images 
         and nats for binary images.
         
         Args:
-            x (Tensor): The noiseless (N x C x H x W) input tensor.
+            x (tensor): The noiseless (N x C x H x W) input tensor.
             
         Returns:
             The total VLB per batch element.
@@ -423,11 +423,11 @@ class DDPM(nn.Module):
             'vlb': vlb
         }
 
-    def t_sample(self, n:int) -> Tensor:
+    def t_sample(self, n:int) -> tensor:
         """Sample n t's uniformly between [0, T]"""
         return torch.randint(0, self.timesteps, (n,), device=self.device).long()
     
-    def forward(self, x:Tensor):
+    def forward(self, x:tensor):
         # select a random timestep t for each x in batch
         t = self.t_sample(x.shape[0])
 
