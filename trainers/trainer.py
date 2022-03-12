@@ -4,7 +4,7 @@ import wandb
 import torch
 import numpy as np
 from torch.optim import Adam
-from .train_helpers import nats_mean
+from utils import reduce_mean
 
 
 class Trainer(object):
@@ -63,7 +63,7 @@ class Trainer(object):
         # define how to log losses
         # currently not used for DDPM.
         # if self.n_channels == 1:
-        self.loss_handle = nats_mean
+        self.loss_handle = reduce_mean
         # else:
         #     self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
         # list holding training objective for each train step
@@ -93,6 +93,9 @@ class Trainer(object):
         else:
             self.wandb_id = wandb.util.generate_id()
             self.config['wandb_id'] = self.wandb_id
+        
+        # define checkpoint name
+        self.checkpoint_name = os.path.join('./logging', f'checkpoint_{self.name}_{self.wandb_id}.pt')
 
         # Instantiate wandb run
         wandb.init(project=self.wandb_name, config=self.config, resume='allow', id=self.wandb_id)

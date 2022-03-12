@@ -38,27 +38,3 @@ def noise_like(shape, device, repeat=False):
     repeat_noise = lambda: torch.randn((1, *shape[1:]), device=device).repeat(shape[0], *((1,) * (len(shape) - 1)))
     noise = lambda: torch.randn(shape, device=device)
     return repeat_noise() if repeat else noise()
-
-
-def reduce_mean(x:torch.tensor) -> torch.tensor:
-    """
-    Reduce input x to a single dimension tensor 
-    by taking the mean over all non-batch dimensions.
-    """
-    return x.mean(dim=list(range(1, len(x.shape))))
-
-
-def reduce_sum(x:torch.tensor) -> torch.tensor:
-    """
-    Reduce input x to a single dimension tensor 
-    by taking the sum over all non-batch dimensions.
-    """
-    return x.sum(dim=list(range(1, len(x.shape))))
-
-
-def flat_bits(x:torch.tensor):
-    """
-    Take the mean over all non-batch dimensions, and scale by log(2).
-    Returns the bits per dim of the input tensor.
-    """
-    return reduce_mean(x) / np.log(2.)

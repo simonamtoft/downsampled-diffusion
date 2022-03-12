@@ -1,14 +1,12 @@
-import os
 import wandb
 import torch
-import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 
+from utils import min_max_norm_image
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
-    log_images, lambda_lr, min_max_norm_image
+    log_images, lambda_lr
 
 
 class TrainerDRAW(Trainer):

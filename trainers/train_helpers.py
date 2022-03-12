@@ -1,26 +1,7 @@
 import torch
 import os
 import wandb
-import numpy as np
 from torchvision import utils
-
-
-# def compute_bits_dim(nats:torch.Tensor, x_dim:int):
-#     """Compute the bits/dim from nats"""
-#     nats_dim = nats / x_dim
-#     bits_dim = nats_dim / np.log(2)
-#     return bits_dim
-
-
-# def mean_and_bits_dim(x_dim:int, loss:list):
-#     """Takes mean of input loss and returns the bits dim instead of nats."""
-#     nats = nats_mean(loss)
-#     return compute_bits_dim(nats, x_dim)
-
-
-def nats_mean(loss:list):
-    """Takes mean of input loss, thus returning nats"""
-    return np.array(loss).mean()
 
 
 def cycle(dl):
@@ -106,19 +87,3 @@ def log_images(x_recon:torch.Tensor=None, x_sample:torch.Tensor=None, folder:str
     # Delete the logged images
     delete_if_exists(name_recon)
     delete_if_exists(name_sample)
-
-
-def min_max_norm_batch(x:torch.tensor):
-    """Returns the min-max normalization of x across batch."""
-    return (x - x.min()) / (x.max() - x.min())
-
-
-def min_max_norm_image(x:torch.tensor):
-    """
-    Returns the min-max normalization per image in the
-    batch instead of over the entire batch of images.
-    """
-    b = x.shape[0]
-    x_min = x.view(b, -1).min(dim=1).values[:, None, None, None]
-    x_max = x.view(b, -1).max(dim=1).values[:, None, None, None]
-    return (x - x_min) / (x_max - x_min)

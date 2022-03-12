@@ -1,5 +1,5 @@
 import torch
-from torch import dropout, nn
+from torch import nn
 from models.utils import exists, default
 from models.unet.blocks import SinusoidalPosEmb, \
     Mish, ResnetBlock, Residual, LinearAttention, \

@@ -1,5 +1,5 @@
 import numpy as np
-from models.downsampled.convblocks import get_interpolate, \
+from .convblocks import get_interpolate, \
     SimpleUpConv, SimpleDownConv, ConvResBlock, UnetUp, UnetDown
 
 
