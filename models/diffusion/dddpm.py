@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from torch import Tensor
 
 from utils import min_max_norm_image
 from models.downsampled import get_downsampling, \
@@ -31,17 +32,17 @@ class DownsampleDDPM(DDPM):
         self.upsample = get_upsampling(config, shape)
 
     @torch.no_grad()
-    def reconstruct(self, x:torch.tensor, n:int) -> tuple:
+    def reconstruct(self, x:Tensor, n:int) -> tuple:
         """
         Reconstructs x_hat from x in downsampled space and upsamples at the end.
         Method only used for visualization and not for computing gradients etc.
         
         Returns
-            x_recon (torch.tensor): A tensor of n reconstructions of x in the 
+            x_recon (Tensor): A tensor of n reconstructions of x in the 
                                     original image space. The reconstructions 
                                     are made from increasing noisy x_t for
                                     timescales t linearly between 0 to T.
-            z_hat   (torch.tensor): A tensor of n reconstructions of x in the 
+            z_hat   (Tensor): A tensor of n reconstructions of x in the 
                                     latent space. The reconstructions 
                                     are made from increasing noisy z_t for
                                     timescales t linearly between 0 to T.
@@ -76,14 +77,14 @@ class DownsampleDDPM(DDPM):
         image space.
         
         Returns:
-            x_sample (torch.tensor):    A tensor of batch_size samples in original image space.
-            z_sample (torch.tensor):    A tensor of batch_size samples in latent space.
+            x_sample (Tensor):    A tensor of batch_size samples in original image space.
+            z_sample (Tensor):    A tensor of batch_size samples in latent space.
         """
         z_sample = self.p_sample_loop((batch_size, *self.sample_shape))
         x_sample = self.upsample(z_sample)
         return x_sample, z_sample
 
-    def rescaled_downsample(self, x:torch.tensor) -> torch.tensor:
+    def rescaled_downsample(self, x:Tensor) -> Tensor:
         """Downsample input x to z-space and rescale output z to be in [-1, 1]"""
         # downsample input
         z = self.downsample(x)
@@ -92,12 +93,12 @@ class DownsampleDDPM(DDPM):
         z = min_max_norm_image(z) * 2. - 1.
         return z
 
-    def loss_recon(self, x:torch.tensor, x_hat:torch.tensor, t:torch.tensor) -> torch.tensor:
+    def loss_recon(self, x:Tensor, x_hat:Tensor, t:Tensor) -> Tensor:
         loss = self.get_loss(x, x_hat).mean(dim=[1, 2, 3])
         loss = torch.where(t < self.t_rec_max, loss, torch.zeros_like(loss))
         return loss
 
-    def losses(self, x:torch.tensor, t:torch.tensor) -> tuple:
+    def losses(self, x:Tensor, t:Tensor) -> tuple:
         """Train loss computations for the Downsample DDPM architecture."""
         
         # downsample x to z rescaled to [-1, 1]
@@ -121,7 +122,7 @@ class DownsampleDDPM(DDPM):
             'recon': L_rec.mean()
         }
     
-    # def t_sample(self, n:int) -> torch.tensor:
+    # def t_sample(self, n:int) -> Tensor:
     #     """Sample n t's uniformly between [0, T], apart from t = 0 which is weighted higher."""
     #     w = torch.ones(self.timesteps)
     #     # w[0] = int(self.timesteps * 0.01)   # sample t = 0, 1% of the time.
@@ -133,7 +134,7 @@ class DownsampleDDPMAutoencoder(DownsampleDDPM):
     def __init__(self, config:dict, denoise_model:nn.Module, device:str, color_channels:int=3):
         super().__init__(config, denoise_model, device, color_channels)
 
-    def losses(self, x:torch.tensor, t:torch.tensor) -> tuple:
+    def losses(self, x:Tensor, t:Tensor) -> tuple:
         """Training loss computations for the Autoencoder implementation for down-up sampling."""
         # downsample the input
         z = self.rescaled_downsample(x)
