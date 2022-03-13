@@ -6,14 +6,15 @@ from trainers import setup_trainer
 DATA_ROOT = '../data/'
 RES_FOLDER = './results'
 WANDB_PROJECT = 'ddpm-test'
-CHECKPOINT_NAME = 'checkpoint_ddpm_vlb_paper_1.pt'
-# CHECKPOINT_NAME = 'checkpoint_ddpm_simple_paper_2.pt'
+# CHECKPOINT_NAME = 'checkpoint_ddpm_vlb_paper_2.pt'
+CHECKPOINT_NAME = 'checkpoint_ddpm_simple_paper_3.pt'
 
 
 if __name__ == '__main__':    
     checkpoint = torch.load(os.path.join(RES_FOLDER, CHECKPOINT_NAME))
     config = checkpoint['config']
-
+    config['loss_flat'] = 'mean'
+    
     # instantiate trainer
     trainer, config = setup_trainer(config, True, DATA_ROOT, WANDB_PROJECT, RES_FOLDER, seed=0)
 

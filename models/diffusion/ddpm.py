@@ -44,8 +44,12 @@ class DDPM(nn.Module):
         
         # compute loss as L2 (MSE), and flatten with mean or sum
         self.get_loss = partial(l2_loss, reduction='none')  # don't take mean
-        # self.flatten_loss = reduce_mean
-        self.flatten_loss = reduce_sum
+        if config['loss_flat'] == 'mean':
+            self.flatten_loss = reduce_mean
+        elif config['loss_flat'] == 'sum':
+            self.flatten_loss = reduce_sum
+        else:
+            raise ValueError(f'Can only do mean or sum for flatten of loss, but {config["loss_flat"]} was desired..')
         
         # Initialize betas (variances)
         betas = make_beta_schedule(config['beta_schedule'], self.timesteps)

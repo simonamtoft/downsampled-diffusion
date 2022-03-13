@@ -27,6 +27,7 @@ CONFIG_MODEL = {
         'loss_type': 'simple',      # simple, vlb, hybrid
         'beta_schedule': 'cosine',  # linear, cosine, sqrt_linear, sqrt
         'ema_decay': 0.995,         # iddpm + ddpm: 0.9999
+        'loss_flat': 'sum',         # whether to mean or sum over non-batch dimensions of the loss
     },
     'dddpm': {
         # alter some ddpm parameters
@@ -39,15 +40,15 @@ CONFIG_MODEL = {
         #   convolutional
         #   convolutional_unet
         #   convolutional_res
-        'd_mode': 'convolutional',
+        'd_mode': 'convolutional_res',
         # define loss mode for reconstruction
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
-        't_rec_max': 500,
+        't_rec_max': 100,
         'unet_in': 4,
-        'd_dropout': 0.1,
-        'd_chans': 16,
+        'd_dropout': 0,
+        'd_chans': 32,
     },
     'draw': {
         'h_dim': 400,
