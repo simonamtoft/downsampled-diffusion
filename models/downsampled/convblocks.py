@@ -93,7 +93,7 @@ class SimpleUpConv(BaseConv):
 
 
 class ConvResBlock(nn.Module):
-    def __init__(self, dim:int, in_channels:int, out_channels:int, upsample:bool=False, dropout:float=0, residual:bool=False):
+    def __init__(self, dim:int, in_channels:int, out_channels:int=None, upsample:bool=False, dropout:float=0, residual:bool=False):
         super().__init__()
         self.upsample = upsample
         self.residual = residual # set to false for start/end
@@ -126,6 +126,23 @@ class ConvResBlock(nn.Module):
         else:
             out = F.avg_pool2d(out, kernel_size=2, stride=2)
         return out
+
+
+class ConvResNet(nn.Module):
+    def __init__(self, dim:int, in_channels:int, out_channels:int, n_downsamples:int=1, upsample:bool=False, dropout:float=0):
+        super().__init__()
+        dims = [in_channels, *(np.ones(n_downsamples).astype(int) * dim), out_channels]
+        dim_list = list(zip(dims[:-1], dims[1:], dims[2:]))
+        conv_list = []
+        for i, (in_, mid_, out_) in enumerate(dim_list):
+            # residual = i != n_downsamples
+            conv_list.append(
+                ConvResBlock(mid_, in_, out_, upsample, dropout, False)
+            )
+        self.conv = nn.Sequential(*conv_list)
+
+    def forward(self, x:tensor) -> tensor:
+        return self.conv(x)
 
 
 class UnetBase(nn.Module):

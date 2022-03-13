@@ -1,6 +1,6 @@
 import numpy as np
 from .convblocks import get_interpolate, \
-    SimpleUpConv, SimpleDownConv, ConvResBlock, UnetUp, UnetDown
+    SimpleUpConv, SimpleDownConv, ConvResNet, UnetUp, UnetDown
 
 
 def get_upsampling(config:dict, shape:tuple):
@@ -27,7 +27,7 @@ def get_upsampling(config:dict, shape:tuple):
     elif mode == 'convolutional_unet':
         return UnetUp(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(dim, out_channels, in_channels, upsample=True, dropout=dropout)
+        return ConvResNet(dim, out_channels, in_channels, n_down, upsample=True, dropout=dropout)
     else:
         raise NotImplementedError(f'Upsampling method for "{mode}" not implemented!')
 
@@ -58,6 +58,6 @@ def get_downsampling(config:dict, shape:tuple):
     elif mode == 'convolutional_unet':
         return UnetDown(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResBlock(dim, in_channels, out_channels, upsample=False, dropout=dropout)
+        return ConvResNet(dim, in_channels, out_channels, n_down, upsample=False, dropout=dropout)
     else:
         raise NotImplementedError(f'Downsampling method for "{mode}" not implemented!')
