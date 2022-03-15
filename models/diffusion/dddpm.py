@@ -6,7 +6,6 @@ from torch import tensor
 from utils import min_max_norm_image
 from models.downsampled import get_downsampling, \
     get_upsampling
-
 from .ddpm import DDPM
 
 
@@ -68,7 +67,7 @@ class DownsampleDDPM(DDPM):
 
         # upsample reconstruction
         x_recon = self.upsample(z_recon)
-        assert list(x_recon)[1:] == self.x_shape
+        assert list(x_recon.shape)[1:] == self.x_shape
         return x_recon, z_recon
 
     @torch.no_grad()
