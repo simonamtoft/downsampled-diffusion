@@ -6,6 +6,11 @@ import torch.nn.functional as F
 from models.utils import exists
 
 
+# class Mish(nn.Module):
+#     def forward(self, x:tensor) -> tensor:
+#         return x * torch.tanh(F.softplus(x))
+
+
 class Residual(nn.Module):
     def __init__(self, fn):
         super().__init__()
@@ -28,11 +33,6 @@ class SinusoidalPosEmb(nn.Module):
         emb = x[:, None] * emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
-
-
-class Mish(nn.Module):
-    def forward(self, x:tensor) -> tensor:
-        return x * torch.tanh(F.softplus(x))
 
 
 class Upsample(nn.Module):
@@ -83,7 +83,7 @@ class Block(nn.Module):
         self.block = nn.Sequential(
             nn.Conv2d(dim, dim_out, 3, padding=1),
             nn.GroupNorm(groups, dim_out),
-            Mish()
+            nn.Mish()
         )
 
     def forward(self, x:tensor) -> tensor:
@@ -96,7 +96,7 @@ class ResnetBlock(nn.Module):
         
         # Instantiate time embedding
         self.mlp = nn.Sequential(
-            Mish(),
+            nn.Mish(),
             nn.Linear(time_emb_dim, dim_out)
         ) if exists(time_emb_dim) else None
         

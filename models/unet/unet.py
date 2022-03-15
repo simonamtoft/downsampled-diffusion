@@ -2,8 +2,9 @@ import torch
 from torch import nn, tensor
 from models.utils import exists, default
 from models.unet.blocks import SinusoidalPosEmb, \
-    Mish, ResnetBlock, Residual, LinearAttention, \
+    ResnetBlock, Residual, LinearAttention, \
     PreNorm, Downsample, Upsample, Block
+# Mish, \
 
 
 class Unet(nn.Module):
@@ -30,7 +31,7 @@ class Unet(nn.Module):
         self.time_mlp = nn.Sequential(
             SinusoidalPosEmb(dim),
             nn.Linear(dim, dim * 4),
-            Mish(),
+            nn.Mish(),
             nn.Linear(dim * 4, dim)
         )
 
