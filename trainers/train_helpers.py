@@ -72,19 +72,16 @@ def log_images(x_recon:tensor=None, x_sample:tensor=None, folder:str='.', name:s
     
     # add reconstruction to log
     if x_recon is not None:
-        name_recon = f'{folder}/recon_{name}.png'
+        name_recon = os.path.join(folder, f'recon_{name}.png')
         utils.save_image(x_recon, name_recon, nrow=nrow)
         log_dict[rname] = wandb.Image(name_recon)
      
     # add samples to log
     if x_sample is not None:
-        name_sample = f'{folder}/sample_{name}.png'
+        name_sample = os.path.join(folder, f'sample_{name}.png')
         utils.save_image(x_sample, name_sample, nrow=nrow)
         log_dict[sname] = wandb.Image(name_sample)
 
     # Log the images to wandb
     wandb.log(log_dict, commit=commit)
-
-    # Delete the logged images
-    delete_if_exists(name_recon)
-    delete_if_exists(name_sample)
+    return name_recon, name_sample

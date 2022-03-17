@@ -76,14 +76,16 @@ class TrainerDDPM(Trainer):
         samples = min_max_norm_image(self.sample())
         recon = min_max_norm_image(self.recon(x))
         log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
-        log_images(
+        name_recon, name_sample = log_images(
             x_recon=recon, 
             x_sample=samples, 
             folder=self.res_folder, 
-            name=f'{log_name}.png', 
+            name=f'{log_name}', 
             nrow=self.n_rows,
             commit=commit
         )
+        delete_if_exists(name_recon)
+        delete_if_exists(name_sample)
 
     def train_loop(self) -> None:
         while self.step < self.n_steps:
@@ -137,17 +139,19 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
 
     @torch.no_grad()
-    def log_wandb(self, x:Tensor, commit:bool=True) -> None:
+    def log_wandb(self, x:Tensor) -> None:
         """Log reconstruction and sample images, for both original and latent space to wandb."""
         # generate samples and reconstructions
         x_recon, z_recon = self.recon(x)
         x_sample, z_sample = self.sample()
-        log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
         
         # convert latent samples and recon to single channel
         # and set shape to be N x 1 x H x W
         z_recon = z_recon[:, 0, None]
         z_sample = z_sample[:, 0, None]
+        
+        print('recon means:', x_recon[0].mean(), z_recon[0].mean())
+        print('sample means:', x_sample[0].mean(), z_sample[0].mean())
         
         # do min-max normalization
         x_recon, z_recon, x_sample, z_sample = (
@@ -155,27 +159,36 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             min_max_norm_image(x_sample), min_max_norm_image(z_sample)
         )
 
+        # define logging name
+        log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
+        
         # log original image space reconstructions and samples to wandb
-        log_images(
+        name_x_recon, name_x_sample = log_images(
             x_recon=x_recon,
             x_sample=x_sample,
             folder=self.res_folder,
-            name=f'{log_name}.png',
+            name=f'x_{log_name}',
             nrow=self.n_rows,
             commit=False
         )
         
         # log latent reconstructions and samples to wandb
-        log_images(
+        name_z_recon, name_z_sample = log_images(
             x_recon=z_recon,
             x_sample=z_sample,
             folder=self.res_folder,
-            name=f'{log_name}.png',
+            name=f'z_{log_name}',
             nrow=self.n_rows,
             rname='recon_latent',
             sname='sample_latent',
-            commit=commit
+            commit=True
         )
+        
+        # delete images after logging
+        delete_if_exists(name_x_recon)
+        delete_if_exists(name_x_sample)
+        delete_if_exists(name_z_recon)
+        delete_if_exists(name_z_sample)
 
     def train_loop(self):
         while self.step < self.n_steps:
