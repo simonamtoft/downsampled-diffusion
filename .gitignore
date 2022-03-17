@@ -135,3 +135,4 @@ bsub_logs/*
 wandb/*
 test.py
 *.sh
+logging/*
