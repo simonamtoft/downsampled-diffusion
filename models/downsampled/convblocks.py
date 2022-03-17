@@ -5,7 +5,7 @@ from torch import tensor
 import torch.nn.functional as F
 from functools import partial
 from models.unet.blocks import ResnetBlock, Residual, LinearAttention, \
-    PreNorm, Downsample, Upsample, Block
+    PreNorm, Downsample, Upsample, Block, Upsample, Downsample
 
 
 def get_interpolate(size:tuple, mode:str=None, align:bool=True):
@@ -93,9 +93,11 @@ class SimpleUpConv(BaseConv):
 
 
 class ConvResBlock(nn.Module):
-    def __init__(self, dim:int, in_channels:int, out_channels:int=None, upsample:bool=False, dropout:float=0, residual:bool=False):
+    def __init__(self, dim:int, in_channels:int, out_channels:int=None, upsample:bool=False, downsample:bool=False, dropout:float=0, residual:bool=False):
         super().__init__()
         self.upsample = upsample
+        self.downsample = downsample
+        assert not (self.upsample and self.downsample), 'Does not make sense to both down- and upsample.'
         self.residual = residual # set to false for start/end
 
         # convolutional layers
@@ -106,24 +108,27 @@ class ConvResBlock(nn.Module):
         
         # dropout layer
         self.drop = nn.Dropout2d(p=dropout)
+        
+        # define activation function
+        self.activation = F.mish # gelu elu silu
 
     def forward(self, x:tensor) -> tensor:
         # perform convolutions
-        x_hat = self.c1(F.gelu(x))
-        x_hat = self.c2(F.gelu(x_hat))
-        x_hat = self.c3(F.gelu(x_hat))
-        x_hat = self.c4(F.gelu(x_hat))
-        
+        x_hat = self.c1(self.activation(x))
+        x_hat = self.c2(self.activation(x_hat))
+        x_hat = self.c3(self.activation(x_hat))
+        x_hat = self.c4(self.activation(x_hat))
+
         # add dropout
         x_hat = self.drop(x_hat)
-        
+
         # residual connection
         out = x + x_hat if self.residual else x_hat
-        
+
         # perform up or downsampling
         if self.upsample:
             out = F.interpolate(out, scale_factor=2)
-        else:
+        elif self.downsample:
             out = F.avg_pool2d(out, kernel_size=2, stride=2)
         return out
 
@@ -131,18 +136,27 @@ class ConvResBlock(nn.Module):
 class ConvResNet(nn.Module):
     def __init__(self, dim:int, in_channels:int, out_channels:int, n_downsamples:int=1, upsample:bool=False, dropout:float=0):
         super().__init__()
-        dims = [in_channels, *(np.ones(n_downsamples).astype(int) * dim), out_channels]
-        dim_list = list(zip(dims[:-1], dims[1:], dims[2:]))
+        self.downsample = not upsample
         conv_list = []
-        for i, (in_, mid_, out_) in enumerate(dim_list):
-            # residual = i != n_downsamples
-            conv_list.append(
-                ConvResBlock(mid_, in_, out_, upsample, dropout, False)
-            )
+        
+        # explode channels from in_channels to dim
+        conv_list.append(get_1x1(in_channels, dim))
+        
+        # add convolutional Resnet blocks
+        for _ in range(n_downsamples):
+            conv_list.extend([
+                ConvResBlock(int(dim/2), dim, dim, upsample, self.downsample, dropout, residual=True),
+                # Upsample(dim) if upsample else Downsample(dim),
+                ConvResBlock(int(dim/2), dim, dim, False, False, dropout, residual=True)
+            ])
+        
+        # condense channels from dim to out_channels
+        conv_list.append(get_1x1(dim, out_channels))
         self.conv = nn.Sequential(*conv_list)
 
     def forward(self, x:tensor) -> tensor:
-        return self.conv(x)
+        x = self.conv(x)
+        return x
 
 
 class UnetBase(nn.Module):
