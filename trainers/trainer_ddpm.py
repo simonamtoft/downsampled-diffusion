@@ -149,10 +149,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         # and set shape to be N x 1 x H x W
         z_recon = z_recon[:, 0, None]
         z_sample = z_sample[:, 0, None]
-        
-        print('recon means:', x_recon[0].mean(), z_recon[0].mean())
-        print('sample means:', x_sample[0].mean(), z_sample[0].mean())
-        
+
         # do min-max normalization
         x_recon, z_recon, x_sample, z_sample = (
             min_max_norm_image(x_recon), min_max_norm_image(z_recon), 
@@ -223,10 +220,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
                 'train_latent': train_latent,
                 'train_recon': train_recon
             }, commit=(not is_log))
-
-            # print('\nupsample:', self.model.upsample.ups[0][0].block1.block[0].weight.sum())
-            # print('downsample:', self.model.downsample.downs[0][0].block1.block[0].weight.sum())
-            
+ 
             # update gradients
             self.opt.step()
             self.opt.zero_grad()
