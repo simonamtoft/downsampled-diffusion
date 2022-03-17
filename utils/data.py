@@ -171,7 +171,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
 
 
 def get_color_channels(dataset:str) -> int:
-    if dataset in ['cifar10', 'cifar100', 'celeba_hq']:
+    if dataset in ['cifar10', 'cifar100', 'celeba', 'celeba_hq']:
         return 3
     elif dataset in ['mnist', 'omniglot']:
         return 1
@@ -209,7 +209,7 @@ def get_label_map(dataset:str) -> list:
         ]
     elif dataset == 'mnist':
         return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-    elif dataset == 'celeba_hq':
+    elif dataset in ['celeba', 'celeba_hq']:
         return ['female', 'male']
     else:
         raise Exception(f'Dataset {dataset} does not have a label map implemented...')
