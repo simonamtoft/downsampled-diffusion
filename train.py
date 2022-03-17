@@ -32,7 +32,7 @@ CONFIG_MODEL = {
     'dddpm': {
         # alter some ddpm parameters
         'unet_chan': 64,            # iddpm paper: 128
-        'unet_dims': (1, 2, 4),
+        'unet_dims': (1, 2, 2),     #, 2
         'unet_dropout': 0.3,
         # set mode of down-up sampling architecture.
         # options: 
@@ -45,7 +45,7 @@ CONFIG_MODEL = {
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
-        't_rec_max': 100,
+        't_rec_max': 500,
         'unet_in': 4,
         'd_dropout': 0,
         'd_chans': 32,
@@ -87,9 +87,6 @@ if __name__ == '__main__':
     print(json.dumps(config, sort_keys=False, indent=4) + '\n')
     
     # train model
-    losses = trainer.train()
-    
-    # Store losses
-    trainer.save_losses(losses)
+    _ = trainer.train()
     
     print("train.py script finished!")
