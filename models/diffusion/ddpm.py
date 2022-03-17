@@ -31,7 +31,7 @@ class DDPM(nn.Module):
         self.timesteps = config['T']
 
         # setup shape for sampling
-        self.sample_shape = (self.in_channels, self.image_size, self.image_size)
+        self.sample_shape = [self.in_channels, self.image_size, self.image_size]
 
         # determine whether to clip denoised to range or not
         self.clip_denoised = True
