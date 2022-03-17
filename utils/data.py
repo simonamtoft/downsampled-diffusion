@@ -10,7 +10,7 @@ from torchvision.datasets import CelebA, CIFAR10, \
 from torch.utils.data import DataLoader
 
 DATA_ROOT = './data/'
-DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot', 'celeba_hq']
+DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot', 'celeba', 'celeba_hq']
 
 
 def binarize(x:torch.Tensor) -> torch.Tensor:
@@ -110,20 +110,21 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     data_args = {'download': False, 'transform': data_transform, 'train': train}
 
     # Get data
-    if config['dataset'] == 'cifar10':
+    dataset_name = config['dataset']
+    if dataset_name == 'cifar10':
         data = CIFAR10(data_root, **data_args)
-    elif config['dataset'] == 'cifar100':
+    elif dataset_name == 'cifar100':
         data = CIFAR100(data_root, **data_args)
-    elif config['dataset'] == 'mnist':
+    elif dataset_name == 'mnist':
         data = MNIST(data_root, **data_args)
-    elif config['dataset'] == 'omniglot':
+    elif dataset_name == 'omniglot':
         data = Omniglot(data_root, **data_args)
-    elif config['dataset'] == 'celeba_hq':
+    elif dataset_name in ['celeba', 'celeba_hq']:
         split_ = 'train' if train else 'test'
-        celeba_hq_dir = os.path.join(data_root, 'celeba_hq', split_)
+        celeba_hq_dir = os.path.join(data_root, dataset_name, split_)
         data = DatasetFolder(celeba_hq_dir, loader=img_loader, extensions=('jpg'), transform=data_transform)
     else:
-        raise Exception(f'Dataset {config["dataset"]} not implemented...')
+        raise Exception(f'Dataset {dataset_name} not implemented...')
 
     # setup CUDA args for DataLoaders
     kwargs = {'num_workers': 4, 'pin_memory': True} if 'cuda' in device else {}
