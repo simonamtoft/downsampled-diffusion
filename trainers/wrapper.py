@@ -58,4 +58,5 @@ def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp'
         trainer = TrainerVAE(config, model, *train_args)
     else: 
         raise NotImplementedError('Specified model not implemented.')
+    config['model_size'] = sum(p.numel() for p in model.parameters())
     return trainer, config
