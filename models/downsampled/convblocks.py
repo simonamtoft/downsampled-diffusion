@@ -134,22 +134,25 @@ class ConvResBlock(nn.Module):
 
 
 class ConvResNet(nn.Module):
-    def __init__(self, dim:int, in_channels:int, out_channels:int, n_downsamples:int=1, upsample:bool=False, dropout:float=0):
+    def __init__(self, dim:int, in_channels:int, out_channels:int, n_downsamples:int=1, upsample:bool=False, dropout:float=0, n_blocks:float=1):
         super().__init__()
-        self.downsample = not upsample
+        downsample = not upsample
         conv_list = []
-        
+
         # explode channels from in_channels to dim
         conv_list.append(get_1x1(in_channels, dim))
-        
+
         # add convolutional Resnet blocks
         for _ in range(n_downsamples):
-            conv_list.extend([
-                ConvResBlock(int(dim/2), dim, dim, upsample, self.downsample, dropout, residual=True),
-                # Upsample(dim) if upsample else Downsample(dim),
-                ConvResBlock(int(dim/2), dim, dim, False, False, dropout, residual=True)
-            ])
-        
+            conv_list.append(
+                ConvResBlock(int(dim/2), dim, dim, upsample, downsample, dropout, residual=True),
+            )
+            if n_blocks > 1:
+                for _ in range(n_blocks-1):
+                    conv_list.append(
+                        ConvResBlock(int(dim/2), dim, dim, False, False, dropout, residual=True)
+                    )
+
         # condense channels from dim to out_channels
         conv_list.append(get_1x1(dim, out_channels))
         self.conv = nn.Sequential(*conv_list)
