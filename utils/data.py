@@ -47,15 +47,22 @@ def get_transforms(config:dict) -> list:
     
     # get dataset and model name from config
     dataset = config['dataset']
-    model = config['model']
-    size = config['image_size']
+    if 'model' in config:
+        model = config['model']
+    else:
+        model = ''
     
-    # setup standard transform
+    # Instantiate transforms list
     data_transform = [
-        Resize(size),
-        CenterCrop(size),
         ToTensor()
     ]
+    
+    # add resize + center crop
+    if 'image_size' in config:
+        data_transform.extend([
+            Resize(config['image_size']),
+            CenterCrop(config['image_size']),
+        ])
     
     # add binarization for autoencoder models on mnist and omniglot
     if model in ['vae', 'lvae', 'draw']:
