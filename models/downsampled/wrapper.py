@@ -18,7 +18,7 @@ def get_upsampling(config:dict, shape:tuple):
     out_channels = config['unet_in']
     dropout = config['d_dropout']
     n_down = config['n_downsamples']
-    
+
     if mode == 'deterministic':
         size = (shape[1], shape[2])
         return get_interpolate(size)
@@ -27,7 +27,7 @@ def get_upsampling(config:dict, shape:tuple):
     elif mode == 'convolutional_unet':
         return UnetUp(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResNet(dim, out_channels, in_channels, n_down, upsample=True, dropout=dropout)
+        return ConvResNet(dim, out_channels, in_channels, n_down, upsample=True, dropout=dropout, n_blocks=config['u_n_blocks'])
     else:
         raise NotImplementedError(f'Upsampling method for "{mode}" not implemented!')
 
@@ -58,6 +58,6 @@ def get_downsampling(config:dict, shape:tuple):
     elif mode == 'convolutional_unet':
         return UnetDown(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
-        return ConvResNet(dim, in_channels, out_channels, n_down, upsample=False, dropout=dropout)
+        return ConvResNet(dim, in_channels, out_channels, n_down, upsample=False, dropout=dropout, n_blocks=config['d_n_blocks'])
     else:
         raise NotImplementedError(f'Downsampling method for "{mode}" not implemented!')
