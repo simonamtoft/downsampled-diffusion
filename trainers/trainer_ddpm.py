@@ -30,10 +30,13 @@ class TrainerDDPM(Trainer):
         self.gradient_accumulate_every = 2
         self.logging_every = 1000
 
-        # EMA model for DDPM training...
-        # self.step_start_ema = 2000
-        # self.update_ema_every = 10
-        # self.model = EMA(self.model, config['ema_decay'])
+        # EMA model for DDPM training
+        self.use_ema = config['ema_decay'] > 0
+        if self.use_ema:
+            self.step_start_ema = 2000
+            self.update_ema_every = 10
+            self.ema = EMA(self.model, config['ema_decay'])
+            self.ema.eval()
         
         # update name to include the depth of the model
         self.name += f'_{config["T"]}'
@@ -43,11 +46,13 @@ class TrainerDDPM(Trainer):
         save_data = {
             'optimizer': self.opt.state_dict(),
             'model': self.model.state_dict(),
-            # 'ema_model': self.ema_model.state_dict(),
             'config': self.config,
             'train_losses': self.train_losses,
             'step': self.step,
         }
+        if self.use_ema:
+            save_data['ema_model'] = self.ema.state_dict()
+            
         torch.save(save_data, self.checkpoint_name)
         wandb.save(self.checkpoint_name, policy='live')
     
@@ -55,20 +60,27 @@ class TrainerDDPM(Trainer):
         """Load the state dict into the instantiated model and ema model."""
         self.opt.load_state_dict(checkpoint['optimizer'])
         self.model.load_state_dict(checkpoint['model'])
-        # self.ema_model.load_state_dict(checkpoint['ema_model'])
         self.config = checkpoint['config']
         self.train_losses = checkpoint['train_losses']
         self.step = checkpoint['step']
+        if 'ema_model' in checkpoint:
+            self.ema.load_state_dict(checkpoint['ema_model'])
 
     @torch.no_grad()
     def sample(self) -> Tensor:
         """Generate n_images samples from the EMA model."""
-        return self.model.sample(self.n_samples)
+        if self.use_ema:
+            return self.ema.sample(self.n_samples)
+        else:
+            return self.model.sample(self.n_samples)
 
     @torch.no_grad()
     def recon(self, x:Tensor) -> Tensor:
         """Generate n_images reconstructions from the model."""
-        return self.model.reconstruct(x, self.n_samples)
+        if self.use_ema:
+            return self.ema.reconstruct(x, self.n_samples)
+        else:
+            return self.model.reconstruct(x, self.n_samples)
 
     @torch.no_grad()
     def log_wandb(self, x:Tensor, commit:bool=True) -> None:
@@ -77,16 +89,22 @@ class TrainerDDPM(Trainer):
         recon = min_max_norm_image(self.recon(x))
         log_name = f'{self.step}_{self.name}_{self.config["dataset"]}'
         name_recon, name_sample = log_images(
-            x_recon=recon, 
-            x_sample=samples, 
-            folder=self.res_folder, 
-            name=f'{log_name}', 
+            x_recon=recon,
+            x_sample=samples,
+            folder=self.res_folder,
+            name=f'{log_name}',
             nrow=self.n_rows,
             commit=commit
         )
         delete_if_exists(name_recon)
         delete_if_exists(name_sample)
 
+    def update_ema(self):
+        if self.step < self.step_start_ema:
+            self.ema.reset(self.model)
+        elif self.step % self.update_ema_every == 0:
+            self.ema.update(self.model)
+    
     def train_loop(self) -> None:
         while self.step < self.n_steps:
             ####    TRAIN STEP   ####
@@ -116,19 +134,20 @@ class TrainerDDPM(Trainer):
             }, commit=(not is_log))
             
             # update gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
             self.opt.step()
             self.opt.zero_grad()
 
             # update EMA parameters
-            # if self.step % self.update_ema_every == 0:
-            #     self.model.update()
+            if self.use_ema:
+                self.update_ema()
 
             ####    EVAL STEP   ####
             self.model.eval()
             if is_log:
                 self.save_checkpoint()
                 self.log_wandb(self.val_batch)
-                delete_if_exists(self.checkpoint_name)
+                # delete_if_exists(self.checkpoint_name)
 
             ####    INCREMENT   ####
             self.step += 1
@@ -146,9 +165,9 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         x_sample, z_sample = self.sample()
         
         # convert latent samples and recon to single channel
-        # and set shape to be N x 1 x H x W
-        z_recon = z_recon[:, 0, None]
-        z_sample = z_sample[:, 0, None]
+        # done by meaning the channel dimension and set shape to be N x 1 x H x W
+        z_recon = z_recon.mean(dim=1)[:, None]
+        z_sample = z_sample.mean(dim=1)[:, None]
 
         # do min-max normalization
         x_recon, z_recon, x_sample, z_sample = (
@@ -226,15 +245,15 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             self.opt.zero_grad()
 
             # update EMA parameters
-            # if self.step % self.update_ema_every == 0:
-            #     self.model.update()
+            if self.use_ema:
+                self.update_ema()
 
             ####    EVAL STEP   ####
             self.model.eval()
             if is_log:
                 self.save_checkpoint()
                 self.log_wandb(self.val_batch)
-                delete_if_exists(self.checkpoint_name)
+                # delete_if_exists(self.checkpoint_name)
 
             ####    INCREMENT   ####
             self.step += 1
