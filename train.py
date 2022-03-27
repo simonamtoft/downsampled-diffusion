@@ -22,33 +22,25 @@ CONFIG_MODEL = {
         'lr': 2e-4,                 # iddpm paper: 2e-4 for 32x32, 2e-5 for 256x256
         'unet_chan': 128,           # iddpm paper: 128
         'unet_dims': (1, 2, 2, 2),  # iddpm paper: (1, 2, 2, 2) for 32x32, (1, 2, 3, 4) for 64x64
-        'unet_dropout': 0.3,        # iddpm paper: 0.1 for linear, 0.3 for cosine
+        'unet_dropout': 0.1,        # iddpm paper: 0.1 for linear, 0.3 for cosine
         'T': 1000,                  # iddpm paper: 4000, ddpm: 1000
         'loss_type': 'simple',      # simple, vlb, hybrid
-        'beta_schedule': 'cosine',  # linear, cosine, sqrt_linear, sqrt
-        'ema_decay': 0.995,         # iddpm + ddpm: 0.9999
+        'beta_schedule': 'linear',  # linear, cosine, sqrt_linear, sqrt
+        'ema_decay': 0,             # iddpm + ddpm: 0.9999
         'loss_flat': 'sum',         # whether to mean or sum over non-batch dimensions of the loss
     },
     'dddpm': {
-        # alter some ddpm parameters
-        'unet_chan': 64,            # iddpm paper: 128
-        'unet_dims': (1, 2, 2),     #, 2
-        'unet_dropout': 0.3,
-        # set mode of down-up sampling architecture.
-        # options: 
-        #   deterministic
-        #   convolutional
-        #   convolutional_unet
-        #   convolutional_res
         'd_mode': 'convolutional_res',
+        'd_dropout': 0,
+        'd_chans': 64,
+        'd_n_blocks': 3,
+        'u_n_blocks': 3,
+        'unet_in': 8,
         # define loss mode for reconstruction
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
-        't_rec_max': 500,
-        'unet_in': 4,
-        'd_dropout': 0,
-        'd_chans': 32,
+        't_rec_max': 100,
     },
     'draw': {
         'h_dim': 400,
