@@ -146,7 +146,10 @@ class DownsampleDDPMAutoencoder(DownsampleDDPM):
 
         # reconstruction loss
         L_rec = self.loss_recon(x, z, t)
-
+        
+        # detach z after computing the reconstruction loss
+        z = z.detach()
+        
         # foward pass through DDPM
         eps = torch.randn_like(z)
         z_t = self.q_sample(z, t, eps)
