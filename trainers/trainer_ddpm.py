@@ -15,13 +15,18 @@ class TrainerDDPM(Trainer):
         super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
         # make data loaders cyclic
         self.train_loader = cycle(self.train_loader)
-        self.val_loader = cycle(self.val_loader)
+        if config['val_split'] > 0:
+            self.val_loader = cycle(self.val_loader)
         
-        # take a single image from the validation dataset
-        # and turn it to batch
-        self.val_batch = next(self.val_loader)[0][0] \
-            .repeat(self.n_samples, 1, 1, 1) \
-            .to(self.device)
+            # take a single image from the validation dataset
+            # and turn it to batch
+            self.val_batch = next(self.val_loader)[0][0] \
+                .repeat(self.n_samples, 1, 1, 1) \
+                .to(self.device)
+        else:
+            self.val_batch = next(self.train_loader)[0][0] \
+                .repeat(self.n_samples, 1, 1, 1) \
+                .to(self.device)
 
         # instantiate training variables
         self.step = 0
@@ -241,6 +246,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
             }, commit=(not is_log))
  
             # update gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.)
             self.opt.step()
             self.opt.zero_grad()
 
