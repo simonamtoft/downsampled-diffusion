@@ -46,7 +46,7 @@ class DownsampleDDPM(DDPM):
                                     are made from increasing noisy z_t for
                                     timescales t linearly between 0 to T.
         """
-        assert x.shape[0] >= n
+        assert x.shape[0] >= n, f'batch size ({x.shape[0]}) is below {n}'
         x = x[:n]
 
         # define linear timescales from 0 to T for n steps
@@ -82,15 +82,15 @@ class DownsampleDDPM(DDPM):
         """
         z_sample = self.p_sample_loop((batch_size, *self.sample_shape))
         x_sample = self.upsample(z_sample)
-        assert list(z_sample.shape)[1:] == self.sample_shape
-        assert list(x_sample.shape)[1:] == self.x_shape
+        assert list(z_sample.shape)[1:] == self.sample_shape, f'mismatch between {list(z_sample.shape)[1:]} and {self.sample_shape}'
+        assert list(x_sample.shape)[1:] == self.x_shape, f'mismatch between {list(x_sample.shape)[1:]} and {self.x_shape}'
         return x_sample, z_sample
 
     def rescaled_downsample(self, x:tensor, rescale:bool=False) -> tensor:
         """Downsample input x to z-space and rescale output z to be in [-1, 1]"""
         # downsample input
         z = self.downsample(x)
-        assert list(z.shape)[1:] == self.sample_shape
+        assert list(z.shape)[1:] == self.sample_shape, f'mismatch between {list(z.shape)[1:]} and {self.sample_shape}'
         
         # rescale to [-1, 1] as DDPM expects
         if rescale:
@@ -99,7 +99,7 @@ class DownsampleDDPM(DDPM):
 
     def loss_recon(self, x:tensor, z_hat:tensor, t:tensor) -> tensor:
         x_hat = self.upsample(z_hat)
-        assert x_hat.shape == x.shape
+        assert x_hat.shape == x.shape, f'mismatch between {x_hat.shape} and {x.shape}'
         loss = self.flatten_loss(self.get_loss(x, x_hat))
         loss = torch.where(t < self.t_rec_max, loss, torch.zeros_like(loss))
         return loss
