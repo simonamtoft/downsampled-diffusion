@@ -11,7 +11,7 @@ from .trainer_draw import TrainerDRAW
 from .trainer_vae import TrainerVAE
 
 
-def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', res_folder='./tmp', seed:int=None, val_split:float=0.15):
+def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', res_folder='./tmp', seed:int=None):
     """Instantiate a trainer for a model specified by the config dict"""
     # fix seed
     seed_everything(seed)
@@ -20,7 +20,7 @@ def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # get DataLoaders
-    train_loader, val_loader = get_dataloader(config, device, True, data_root, val_split)
+    train_loader, val_loader = get_dataloader(config, device, True, data_root, config['val_split'])
 
     # set channels
     color_channels = get_color_channels(config['dataset'])
