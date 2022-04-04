@@ -26,11 +26,13 @@ CONFIG_MODEL = {
         'T': 1000,                  # iddpm paper: 4000, ddpm: 1000
         'loss_type': 'simple',      # simple, vlb, hybrid
         'beta_schedule': 'linear',  # linear, cosine, sqrt_linear, sqrt
-        'ema_decay': 0,             # iddpm + ddpm: 0.9999
+        'ema_decay': 0.995,         # iddpm + ddpm: 0.9999
         'loss_flat': 'sum',         # whether to mean or sum over non-batch dimensions of the loss
+        'val_split': 0,
     },
     'dddpm': {
         'd_mode': 'convolutional_res',
+        'u_mode': 'convolutional_res',
         'd_dropout': 0,
         'd_chans': 64,
         'd_n_blocks': 3,
