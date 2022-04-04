@@ -73,25 +73,34 @@ def get_transforms(config:dict) -> list:
 
     # add transforms for DDPM
     elif model == 'ddpm':
-        # normalize celeba datasets to [0, 1]
-        # if dataset in ['celeba_hq']:
-        #     data_transform.append(Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
-        
         # scale input linearly to [-1, 1]
         data_transform.append(Lambda(lambda t: (t * 2) - 1))
         
         # random flip data
-        if dataset in ['cifar10', 'cifar100']:
+        if dataset in ['cifar10', 'cifar100']: # , 'celeba', 'celeba_hq'
             data_transform.append(RandomHorizontalFlip())
         
     return data_transform   
+
+
+def get_eval_transforms(config):
+    transforms = [
+        ToTensor(),
+        Lambda(lambda t: (t * 2) - 1)
+    ]
+    if 'image_size' in config:
+        transforms.extend([
+            Resize(config['image_size']),
+            CenterCrop(config['image_size']),
+        ])
+    return transforms
 
 
 def img_loader(path):
     return Image.open(path)
 
 
-def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15) -> DataLoader:
+def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_ROOT, val_split:float=0.15, train_transform=True) -> DataLoader:
     """ 
     Returns dataloaders for train and validation splits of the dataset specified in config.
         
@@ -111,7 +120,10 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     """
 
     # Define transforms to perform on each individual image
-    data_transform = Compose(get_transforms(config))
+    if train_transform:
+        data_transform = Compose(get_transforms(config))
+    else:
+        data_transform = Compose(get_eval_transforms(config))
     
     # Initialize data arguments
     data_args = {'download': False, 'transform': data_transform, 'train': train}
@@ -138,33 +150,41 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     
     # return train and validation DataLoaders
     if train:
-        # define number of samples in train and validation sets
-        n_images = len(data)
-        split = (n_images * np.array([1-val_split, val_split])).astype(int)
-        if split.sum() != n_images:
-            split[1] += 1
-        assert split.sum() == n_images, f'split {split} does not match total {n_images} number of images.'
+        if (val_split > 0):
+            # define number of samples in train and validation sets
+            n_images = len(data)
+            split = (n_images * np.array([1-val_split, val_split])).astype(int)
+            if split.sum() != n_images:
+                split[1] += 1
+            assert split.sum() == n_images, f'split {split} does not match total {n_images} number of images.'
 
-        # split data into train and validation
-        train_data, val_data = torch.utils.data.random_split(data, list(split))
+            # split data into train and validation
+            train_data, val_data = torch.utils.data.random_split(data, list(split))
 
-        # Create and return dataloaders for each set
-        train_set = DataLoader(
-            train_data,
-            batch_size=config['batch_size'], 
-            shuffle=True, 
-            drop_last=True,
-            **kwargs,
-        )
-        val_set = DataLoader(
-            val_data,
-            batch_size=config['batch_size'], 
-            shuffle=False, 
-            drop_last=True,
-            **kwargs,
-        )
-        return train_set, val_set
-    
+            # Create and return dataloaders for each set
+            train_set = DataLoader(
+                train_data,
+                batch_size=config['batch_size'], 
+                shuffle=True, 
+                drop_last=True,
+                **kwargs,
+            )
+            val_set = DataLoader(
+                val_data,
+                batch_size=config['batch_size'], 
+                shuffle=False, 
+                drop_last=True,
+                **kwargs,
+            )
+            return train_set, val_set
+        else:
+            return DataLoader(
+                data,
+                batch_size=config['batch_size'], 
+                shuffle=True, 
+                drop_last=True,
+                **kwargs,
+            ), None
     # return test DataLoader
     else:
         test_set = DataLoader(
