@@ -8,7 +8,6 @@
 # https://github.com/NVlabs/NVAE/blob/master/scripts/precompute_fid_statistics.py
 import os
 import argparse
-from itertools import chain
 
 from utils import DATASETS, get_dataloader
 from fid.inception import InceptionV3
