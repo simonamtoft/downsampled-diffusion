@@ -23,10 +23,8 @@ def main(args):
     device = 'cuda'
     dims = 2048
     # for binary datasets including MNIST and OMNIGLOT, we don't apply binarization for FID computation
-    train_queue, valid_queue = get_dataloader(config, 'cuda', True, DATA_ROOT, val_split=0.15)
-    print('len train queue', len(train_queue), 'len val queue', len(valid_queue), 'batch size', args.batch_size)
-    if args.dataset in {'celeba', 'celeba_hq', 'omniglot'}:
-        train_queue = chain(train_queue, valid_queue)
+    train_queue, _ = get_dataloader(config, 'cuda', True, DATA_ROOT, val_split=0, train_transform=False)
+    print('len train queue', len(train_queue), 'batch size', args.batch_size)
 
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
     model = InceptionV3([block_idx], model_dir=FID_DIR).to(device)
@@ -45,12 +43,6 @@ if __name__ == '__main__':
         choices=DATASETS,
         help='which dataset to compute FID statistics on'
     )
-    # parser.add_argument(
-    #     '--data', 
-    #     type=str, 
-    #     default='/tmp/nvae-diff/data',
-    #     help='location of the data corpus'
-    # )
     parser.add_argument(
         '--batch_size', 
         type=int, 
