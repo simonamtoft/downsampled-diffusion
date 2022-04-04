@@ -27,9 +27,6 @@ class EMA():
         for param in self.ema_model.parameters():
             param.detach_()
     
-    def state_dict(self):
-        return self.ema_model.state_dict()
-    
     def eval(self):
         self.ema_model.eval()
     
@@ -56,6 +53,12 @@ class EMA():
     @torch.no_grad()
     def reconstruct(self, x:tensor, n:int) -> tensor:
         return self.ema_model.reconstruct(x, n)
+
+    def load_state_dict(self, state_dict) -> None:
+        self.ema_model.load_state_dict(state_dict)
+    
+    def state_dict(self):
+        return self.ema_model.state_dict()
 
 
 # class EMA(nn.Module):
