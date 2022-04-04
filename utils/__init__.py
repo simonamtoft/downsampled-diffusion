@@ -5,4 +5,5 @@ from .utils import modify_config, min_max_norm_image, \
     min_max_norm_batch, reduce_mean, reduce_sum, flat_bits
 from .rnd_seed import seed_everything
 from .eval_helpers import create_generator_ddpm, \
-    create_generator_dddpm, compute_fid, compute_vlb
+    create_generator_dddpm, compute_fid, compute_vlb, \
+    create_generator_loader
