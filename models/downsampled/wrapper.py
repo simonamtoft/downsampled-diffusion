@@ -13,7 +13,7 @@ def get_upsampling(config:dict, shape:tuple):
     assert shape[1] == shape[2]
     assert shape[0] == 1 or shape[0] == 3
     in_channels = shape[0]
-    mode = config['d_mode']
+    mode = config['u_mode']
     dim = config['d_chans']
     out_channels = config['unet_in']
     dropout = config['d_dropout']
