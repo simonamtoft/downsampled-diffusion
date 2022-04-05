@@ -54,4 +54,5 @@ def compute_vlb(model, test_loader, device):
         x = x.to(device)
         losses = model.calc_vlb(x)
         vlb.append(losses['vlb'])
-    return torch.stack(vlb, dim=1).mean().cpu().numpy()[0]
+    vlb = torch.stack(vlb, dim=1).mean().cpu().numpy()
+    return vlb[0] if isinstance(vlb, list) else vlb
