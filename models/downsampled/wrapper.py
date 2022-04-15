@@ -24,8 +24,6 @@ def get_upsampling(config:dict, shape:tuple):
         return get_interpolate(size)
     elif mode == 'convolutional':
         return SimpleUpConv(out_channels, in_channels, n_down)
-    elif mode == 'convolutional_unet':
-        return UnetUp(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
         return ConvResNet(dim, out_channels, in_channels, n_down, upsample=True, dropout=dropout, n_blocks=config['u_n_blocks'])
     else:
@@ -55,8 +53,6 @@ def get_downsampling(config:dict, shape:tuple):
         return get_interpolate(size)
     elif mode == 'convolutional':
         return SimpleDownConv(out_channels, in_channels, n_down)
-    elif mode == 'convolutional_unet':
-        return UnetDown(dim, in_channels, out_channels, n_down, dropout=dropout)
     elif mode == 'convolutional_res':
         return ConvResNet(dim, in_channels, out_channels, n_down, upsample=False, dropout=dropout, n_blocks=config['d_n_blocks'])
     else:
