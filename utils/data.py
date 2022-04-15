@@ -77,7 +77,7 @@ def get_transforms(config:dict) -> list:
         data_transform.append(Lambda(lambda t: (t * 2) - 1))
         
         # random flip data
-        if dataset in ['cifar10', 'cifar100']: # , 'celeba', 'celeba_hq'
+        if dataset in ['cifar10', 'cifar100', 'celeba', 'celeba_hq']: # 
             data_transform.append(RandomHorizontalFlip())
         
     return data_transform   
@@ -86,7 +86,6 @@ def get_transforms(config:dict) -> list:
 def get_eval_transforms(config):
     transforms = [
         ToTensor(),
-        Lambda(lambda t: (t * 2) - 1)
     ]
     if 'image_size' in config:
         transforms.extend([
@@ -123,6 +122,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
     if train_transform:
         data_transform = Compose(get_transforms(config))
     else:
+        print("Using eval transforms on data")
         data_transform = Compose(get_eval_transforms(config))
     
     # Initialize data arguments
