@@ -1,26 +1,24 @@
-import os
 import json
 import torch
 import wandb
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
-    create_generator_ddpm, create_generator_dddpm, \
-    compute_fid, compute_vlb, create_generator_loader
+    compute_vlb, create_generator_loader
 import tensorflow.compat.v1 as tf
 from fid.evaluator import Evaluator
-from itertools import chain
 import numpy as np
 
 WANDB_PROJECT = 'ddpm-test'
 FID_DIR = './results/fid_stats'
 DATA_ROOT = '../data'
 device = 'cuda'
-saved_model = 'cifar_simple_ema_3'
-fid_samples = 10000
+saved_model = 'cifar_full'
+saved_sample = 'cifar_full_255'
+fid_samples = 50000
 
 # load saved state dict of model and its config file
 save_data = torch.load(f'./results/checkpoints/{saved_model}.pt')
-samples = np.load(f'./results/samples/{saved_model}.npy')
+samples = np.load(f'./results/samples/{saved_sample}.npy')
 config = save_data['config']
 if 'ema_model' in config:
     model_state_dict = save_data['ema_model']
@@ -30,7 +28,14 @@ else:
 # get data
 train_loader, _ = get_dataloader(config, data_root=DATA_ROOT, device=device, train=True, val_split=0)
 test_loader = get_dataloader(config, data_root=DATA_ROOT, device=device, train=False, train_transform=False)
+tmp = create_generator_loader(train_loader)
+tmp = list(tmp)
 g_data = create_generator_loader(train_loader)
+
+# print min-max values
+print('\n\t\tMin\t\tMax')
+print(f'Sample:\t{samples.min():.2f}\t{samples.max():.2f}')
+print(f'Data:\t{np.min(tmp):.2f}\t{np.max(tmp):.2f}')
 
 # Setup DDPM model
 latent_model = Unet(config)
@@ -43,13 +48,17 @@ model.load_state_dict(model_state_dict)
 model = model.to(device)
 model.eval()
 
-
-### COMPUTE METRICS ###
-metrics = {}
-# wandb.init(project=WANDB_PROJECT, config=config, resume='allow', id=config['wandb_id'])
+# setup
 print(f'\nEvaluating the checkpoint {saved_model} with configuration dict:')
 print(json.dumps(config, sort_keys=False, indent=4) + '\n')
+# wandb.init(project=WANDB_PROJECT, config=config, resume='allow', id=config['wandb_id'])
+metrics = {}
 
+### COMPUTE METRICS ###
+# compute VLB
+metrics['vlb'] = compute_vlb(model, test_loader, device)
+
+# compute other metrics using Evaluator
 config = tf.ConfigProto(
     allow_soft_placement=True  # allows DecodeJpeg to run on CPU in Inception graph
 )
@@ -72,11 +81,8 @@ metrics['sfid'] = sample_stats_spatial.frechet_distance(ref_stats_spatial)
 prec, recall = evaluator.compute_prec_recall(ref_acts[0], sample_acts[0])
 metrics['precision'] = prec
 metrics['recall'] = recall
-metrics['vlb'] = compute_vlb(model, test_loader, device)
-
 
 # Display resulting metrics
 print('\nResults:')
 print(metrics)
-print(json.dumps(metrics, sort_keys=False, indent=4) + '\n')
 # wandb.finish()
