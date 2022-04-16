@@ -1,6 +1,6 @@
 import numpy as np
 from .convblocks import get_interpolate, \
-    SimpleUpConv, SimpleDownConv, ConvResNet, UnetUp, UnetDown
+    SimpleUpConv, SimpleDownConv, ConvResNet
 
 
 def get_upsampling(config:dict, shape:tuple):
