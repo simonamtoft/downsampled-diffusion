@@ -126,13 +126,49 @@ class DownsampleDDPM(DDPM):
             'latent': L_ddpm.mean(),
             'recon': L_rec.mean()
         }
-    
-    # def t_sample(self, n:int) -> tensor:
-    #     """Sample n t's uniformly between [0, T], apart from t = 0 which is weighted higher."""
-    #     w = torch.ones(self.timesteps)
-    #     # w[0] = int(self.timesteps * 0.01)   # sample t = 0, 1% of the time.
-    #     # self.t_w = w / w.sum()
-    #     return torch.multinomial(w, n, replacement=True).to(self.device).long()
+
+    @torch.no_grad()
+    def calc_vlb(self, x:tensor):
+        """
+        Computes the entire variational lower-bound for the 
+        entire Markov chain, measured in bits/dim for color images 
+        and nats for binary images.
+        
+        Args:
+            x (tensor): The noiseless (N x C x H x W) input tensor.
+            
+        Returns:
+            The total VLB per batch element.
+        """
+        
+        # downsample the input
+        z = self.downsample(x)
+        
+        # compute terms L_0, ..., L_{T-1}
+        vlb_t = []
+        for t in list(range(self.timesteps))[::-1]:
+            t_batch = torch.full((z.shape[0],), t, device=self.device, dtype=torch.long)
+            eps = torch.randn_like(z)
+            z_t = self.q_sample(z, t_batch, eps)
+            
+            # calculate vlb for timestep t
+            vlb_ = self.vlb_terms(z, z_t, t_batch)  # try scalar t instead of t_batch
+            vlb_t.append(vlb_)
+
+        # vlb for each timestep for each batch
+        vlb_t = torch.stack(vlb_t, dim=1)
+        
+        # compute the prior (L_T) for each batch
+        prior = self.calc_prior(z)
+        
+        # sum vlb and prior
+        vlb = vlb_t.sum(dim=1) + prior
+        
+        return {
+            'vlb_t': vlb_t,
+            'prior': prior,
+            'vlb': vlb
+        }
 
 
 class DownsampleDDPMAutoencoder(DownsampleDDPM):
