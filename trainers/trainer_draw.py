@@ -3,15 +3,15 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
 
-from utils import min_max_norm_image
+from utils import min_max_norm_image, LOGGING_DIR
 from .trainer import Trainer
 from .train_helpers import DeterministicWarmup, \
     log_images, lambda_lr
 
 
 class TrainerDRAW(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
         
         # Setup learning rate scheduler
         lr_decay = {'n_epochs': 1000, 'delay': 150}
@@ -45,7 +45,7 @@ class TrainerDRAW(Trainer):
     
         # log recon and sample
         name = f'{epoch}_{self.name}_{self.config["dataset"]}'
-        log_images(x_recon, x_sample, self.res_folder, name, self.n_rows)
+        log_images(x_recon, x_sample, LOGGING_DIR, name, self.n_rows)
         
     def train(self):
         # Initialize a new wandb run

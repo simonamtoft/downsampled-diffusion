@@ -1,9 +1,10 @@
+import os
 import time
 import torch
 import numpy as np
 from tqdm import tqdm
 
-from utils import fix_samples
+from utils import fix_samples, SAMPLE_DIR, CHECKPOINT_DIR
 from fengnima_pretrained.util import print_size, sampling
 from fengnima_pretrained.UNet import UNet
 
@@ -11,7 +12,6 @@ torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
 
-output_directory = './results/samples/fengnima'
 saved_model = 'fengnima'
 fid_samples = 5000
 batch_size = 192
@@ -36,7 +36,7 @@ Sigma = torch.sqrt(Beta_tilde)
 # load model
 net = UNet(**unet_config)
 print_size(net)
-checkpoint = torch.load(f'./results/checkpoints/{saved_model}.pkl', map_location='cpu')
+checkpoint = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pkl'), map_location='cpu')
 net.load_state_dict(checkpoint['model_state_dict'])
 net = net.cuda()
 
@@ -49,5 +49,6 @@ for i in tqdm(range(int(np.ceil(fid_samples/batch_size))), desc='sampling from m
 time_diff = time.time() - time_start
 print(f'Generated {fid_samples} samples in {time_diff} seconds')
 print(f'Average sampling time: {time_diff/fid_samples} (seconds per sample)')
+output_directory = os.path.join(SAMPLE_DIR, saved_model)
 print(f'Saving to {output_directory}')
 np.save(output_directory, sample_list)

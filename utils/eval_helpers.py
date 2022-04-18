@@ -11,7 +11,7 @@ def create_generator_loader(dataloader):
     for batch in dataloader:
         if isinstance(batch, list):
             batch = batch[0]
-        batch = (batch.float().numpy() + 1.) * 0.5 * 255.
+        batch = batch.float().numpy() * 255.
         # batch = batch.float().numpy()
         yield np.moveaxis(batch, 1, -1)
         # yield batch.numpy()

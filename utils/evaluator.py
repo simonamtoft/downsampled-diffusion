@@ -1,7 +1,5 @@
-import argparse
 import io
 import os
-import torch
 import random
 import warnings
 import zipfile
@@ -11,7 +9,6 @@ from functools import partial
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
 from typing import Iterable, Optional, Tuple
-from utils import min_max_norm_image
 
 import numpy as np
 import requests
@@ -24,42 +21,6 @@ INCEPTION_V3_PATH = "classify_image_graph_def.pb"
 
 FID_POOL_NAME = "pool_3:0"
 FID_SPATIAL_NAME = "mixed_6/conv:0"
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("ref_batch", help="path to reference batch npz file")
-    
-    args = parser.parse_args()
-
-    config = tf.ConfigProto(
-        allow_soft_placement=True  # allows DecodeJpeg to run on CPU in Inception graph
-    )
-    config.gpu_options.allow_growth = True
-    evaluator = Evaluator(tf.Session(config=config))
-
-    print("warming up TensorFlow...")
-    # This will cause TF to print a bunch of verbose stuff now rather
-    # than after the next print(), to help prevent confusion.
-    evaluator.warmup()
-
-    print("computing reference batch activations...")
-    ref_acts = evaluator.read_activations(args.ref_batch)
-    print("computing/reading reference batch statistics...")
-    ref_stats, ref_stats_spatial = evaluator.read_statistics(args.ref_batch, ref_acts)
-
-    print("computing sample batch activations...")
-    sample_acts = evaluator.read_activations(args.sample_batch)
-    print("computing/reading sample batch statistics...")
-    sample_stats, sample_stats_spatial = evaluator.read_statistics(args.sample_batch, sample_acts)
-
-    print("Computing evaluations...")
-    print("Inception Score:", evaluator.compute_inception_score(sample_acts[0]))
-    print("FID:", sample_stats.frechet_distance(ref_stats))
-    print("sFID:", sample_stats_spatial.frechet_distance(ref_stats_spatial))
-    prec, recall = evaluator.compute_prec_recall(ref_acts[0], sample_acts[0])
-    print("Precision:", prec)
-    print("Recall:", recall)
 
 
 class InvalidFIDException(Exception):
@@ -131,11 +92,6 @@ class Evaluator:
 
     def warmup(self):
         self.compute_activations(np.zeros([1, 8, 64, 64, 3]))
-        # self.compute_activations(np.zeros([8, 3, 64, 64]))
-
-    # def read_activations(self, npz_path: str) -> Tuple[np.ndarray, np.ndarray]:
-    #     with open_npz_array(npz_path, "arr_0") as reader:
-    #         return self.compute_activations(reader.read_batches(self.batch_size))
 
     def read_activations(self, g) -> Tuple[np.ndarray, np.ndarray]:
         return self.compute_activations(g)
@@ -161,16 +117,6 @@ class Evaluator:
             np.concatenate(preds, axis=0),
             np.concatenate(spatial_preds, axis=0),
         )
-
-    # def read_statistics(
-    #     self, npz_path: str, activations: Tuple[np.ndarray, np.ndarray]
-    # ) -> Tuple[FIDStatistics, FIDStatistics]:
-    #     obj = np.load(npz_path)
-    #     if "mu" in list(obj.keys()):
-    #         return FIDStatistics(obj["mu"], obj["sigma"]), FIDStatistics(
-    #             obj["mu_s"], obj["sigma_s"]
-    #         )
-    #     return tuple(self.compute_statistics(x) for x in activations)
 
     def read_statistics(self, activations: Tuple[np.ndarray, np.ndarray]) -> Tuple[FIDStatistics, FIDStatistics]:
         return tuple(self.compute_statistics(x) for x in activations)
@@ -209,7 +155,6 @@ class Evaluator:
 class ManifoldEstimator:
     """
     A helper for comparing manifolds of feature vectors.
-
     Adapted from https://github.com/kynkaat/improved-precision-and-recall-metric/blob/f60f25e5ad933a79135c783fcda53de30f42c9b9/precision_recall.py#L57
     """
 
@@ -651,7 +596,3 @@ def _numpy_partition(arr, kth, **kwargs):
 
     with ThreadPool(num_workers) as pool:
         return list(pool.map(partial(np.partition, kth=kth, **kwargs), batches))
-
-
-if __name__ == "__main__":
-    main()

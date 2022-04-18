@@ -6,7 +6,6 @@ from trainers import setup_trainer
 
 # setup path to data root
 DATA_ROOT = '../data/'
-RES_FOLDER = './results'
 
 # define WANDB project name
 WANDB_PROJECT = 'ddpm-test'
@@ -31,18 +30,18 @@ CONFIG_MODEL = {
         'val_split': 0,
     },
     'dddpm': {
-        'd_mode': 'convolutional_res',
-        'u_mode': 'convolutional_res',
+        'd_mode': 'convolutional', # deterministic convolutional_res
+        'u_mode': 'convolutional',
         'd_dropout': 0,
         'd_chans': 64,
-        'd_n_blocks': 3,
-        'u_n_blocks': 3,
-        'unet_in': 8,
+        'd_n_blocks': 8,
+        'u_n_blocks': 8,
+        'unet_in': 1,
         # define loss mode for reconstruction
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': False,
-        't_rec_max': 100,
+        't_rec_max': 500,
     },
     'draw': {
         'h_dim': 400,
@@ -74,7 +73,7 @@ if __name__ == '__main__':
             config = modify_config(config, CONFIG_MODEL['dddpm'])
     
     # setup model and trainer
-    trainer, config = setup_trainer(config, mute, DATA_ROOT, WANDB_PROJECT, RES_FOLDER, 0)
+    trainer, config = setup_trainer(config, mute, DATA_ROOT, WANDB_PROJECT, 0)
     
     # print out train configuration
     print('\nTraining configuration dict:')

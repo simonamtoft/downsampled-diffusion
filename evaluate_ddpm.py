@@ -1,24 +1,27 @@
+import os
 import json
 import torch
 import wandb
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
-    compute_vlb, create_generator_loader
+    compute_vlb, create_generator_loader, Evaluator, \
+    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR
 import tensorflow.compat.v1 as tf
-from fid.evaluator import Evaluator
 import numpy as np
 
+# ONLY CHANGE STUFF HERE
+saved_model = 'chq_x3_t100_d_3'
+saved_sample = saved_model
+# saved_sample = 'cifar_full_255'
+fid_samples = 10000
+
+# Directories etc.
 WANDB_PROJECT = 'ddpm-test'
-FID_DIR = './results/fid_stats'
-DATA_ROOT = '../data'
 device = 'cuda'
-saved_model = 'cifar_full'
-saved_sample = 'cifar_full_255'
-fid_samples = 50000
 
 # load saved state dict of model and its config file
-save_data = torch.load(f'./results/checkpoints/{saved_model}.pt')
-samples = np.load(f'./results/samples/{saved_sample}.npy')
+samples = np.load(os.path.join(SAMPLE_DIR, f'{saved_sample}.npy'))
+save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
 config = save_data['config']
 if 'ema_model' in config:
     model_state_dict = save_data['ema_model']
@@ -26,8 +29,8 @@ else:
     model_state_dict = save_data['model']
 
 # get data
-train_loader, _ = get_dataloader(config, data_root=DATA_ROOT, device=device, train=True, val_split=0)
-test_loader = get_dataloader(config, data_root=DATA_ROOT, device=device, train=False, train_transform=False)
+train_loader, _ = get_dataloader(config, data_root=DATA_DIR, device=device, train=True, val_split=0, train_transform=False)
+test_loader = get_dataloader(config, data_root=DATA_DIR, device=device, train=False, train_transform=False)
 tmp = create_generator_loader(train_loader)
 tmp = list(tmp)
 g_data = create_generator_loader(train_loader)

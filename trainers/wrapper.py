@@ -11,7 +11,7 @@ from .trainer_draw import TrainerDRAW
 from .trainer_vae import TrainerVAE
 
 
-def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', res_folder='./tmp', seed:int=None):
+def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', seed:int=None):
     """Instantiate a trainer for a model specified by the config dict"""
     # fix seed
     seed_everything(seed)
@@ -32,7 +32,7 @@ def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp'
     x_dim = reduce(mul, x_shape, 1)
 
     # instantiate model and trainer for specified model and dataset
-    train_args = [train_loader, val_loader, device, wandb_project, mute, res_folder, color_channels]
+    train_args = [train_loader, val_loader, device, wandb_project, mute, color_channels]
     if config['model'] == 'ddpm':
         print('Instantiating DDPM')
         config['unet_in'] = color_channels

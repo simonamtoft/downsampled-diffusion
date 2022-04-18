@@ -4,11 +4,11 @@ import wandb
 import torch
 import numpy as np
 from torch.optim import Adam
-from utils import reduce_mean
+from utils import reduce_mean, LOGGING_DIR
 
 
 class Trainer(object):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None, n_samples:int=25):
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None, n_samples:int=25):
         """
         Trainer class, instantiating standard variables.
             config:         A dict that contains the necessary fields for training the specific model,
@@ -21,7 +21,6 @@ class Trainer(object):
             wandb_name:     A string of the projectname to log to on weight and biases. 
                             If the string is empty, the run wont be logged.
             mute:           Whether to mute all prints such as tqdm during training.
-            res_folder:     A string to the path of the results folder for any images etc.
             n_channels:     Number of channels in the image data. 
                             If None, it is set to 1 for mnist and omniglot, and 3 otherwise.
             n_samples:      Number of samples to generate and log as an image for each log made to wandb.
@@ -41,7 +40,6 @@ class Trainer(object):
         self.device = device                # device to run on (cpu or cuda)
         self.wandb_name = wandb_name        # name of wandb project
         self.mute = mute                    # mute prints etc.
-        self.res_folder = res_folder        # store folder
         self.n_channels = n_channels        # number of color channels in data
         self.n_samples = n_samples          # number of samples to take when logging
         
@@ -51,10 +49,6 @@ class Trainer(object):
             raise ValueError(f'Number of samples ({self.n_samples}) has to be a square number.')
         if self.n_samples > self.batch_size:
             raise ValueError(f'Number of samples ({self.n_samples}) has to be lower than batch size ({self.batch_size}).')
-        
-        # create the results folder if it doesn't exist
-        if not os.path.isdir(self.res_folder):
-            os.mkdir(self.res_folder)
         
         # mute outputs from weight and biases (wandb)
         if mute:
@@ -80,9 +74,9 @@ class Trainer(object):
 
     def save_losses(self) -> None:
         """Save loss results to file"""
-        filename = f'{self.res_folder}/loss_{self.name}_{self.config["dataset"]}.json'
-        print(f'Saving losses to file {filename}')
-        with open(filename, 'w') as f:
+        file_path = os.path.join(LOGGING_DIR, f'loss_{self.name}_{self.config["dataset"]}.json')
+        print(f'Saving losses to file {file_path}')
+        with open(file_path, 'w') as f:
             json.dump(self.train_losses, f)
     
     def init_wandb(self) -> None:
@@ -95,7 +89,7 @@ class Trainer(object):
             self.config['wandb_id'] = self.wandb_id
         
         # define checkpoint name
-        self.checkpoint_name = os.path.join('./logging', f'checkpoint_{self.name}_{self.wandb_id}.pt')
+        self.checkpoint_name = os.path.join(LOGGING_DIR, f'checkpoint_{self.name}_{self.wandb_id}.pt')
 
         # Instantiate wandb run
         wandb.init(project=self.wandb_name, config=self.config, resume='allow', id=self.wandb_id)

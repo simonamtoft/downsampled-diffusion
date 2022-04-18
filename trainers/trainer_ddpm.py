@@ -3,7 +3,7 @@ import torch
 from torch import Tensor
 import numpy as np
 
-from utils import min_max_norm_image
+from utils import min_max_norm_image, LOGGING_DIR
 from .ema import EMA
 from .trainer import Trainer
 from .train_helpers import cycle, log_images, \
@@ -11,8 +11,8 @@ from .train_helpers import cycle, log_images, \
 
 
 class TrainerDDPM(Trainer):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
         # make data loaders cyclic
         self.train_loader = cycle(self.train_loader)
         if config['val_split'] > 0:
@@ -96,7 +96,7 @@ class TrainerDDPM(Trainer):
         name_recon, name_sample = log_images(
             x_recon=recon,
             x_sample=samples,
-            folder=self.res_folder,
+            folder=LOGGING_DIR,
             name=f'{log_name}',
             nrow=self.n_rows,
             commit=commit
@@ -159,8 +159,8 @@ class TrainerDDPM(Trainer):
 
 
 class TrainerDownsampleDDPM(TrainerDDPM):
-    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, res_folder:str='./results', n_channels:int=None):
-        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, res_folder, n_channels)
+    def __init__(self, config:dict, model, train_loader, val_loader=None, device:str='cpu', wandb_name:str='tmp', mute:bool=True, n_channels:int=None):
+        super().__init__(config, model, train_loader, val_loader, device, wandb_name, mute, n_channels)
 
     @torch.no_grad()
     def log_wandb(self, x:Tensor) -> None:
@@ -187,7 +187,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         name_x_recon, name_x_sample = log_images(
             x_recon=x_recon,
             x_sample=x_sample,
-            folder=self.res_folder,
+            folder=LOGGING_DIR,
             name=f'x_{log_name}',
             nrow=self.n_rows,
             commit=False
@@ -197,7 +197,7 @@ class TrainerDownsampleDDPM(TrainerDDPM):
         name_z_recon, name_z_sample = log_images(
             x_recon=z_recon,
             x_sample=z_sample,
-            folder=self.res_folder,
+            folder=LOGGING_DIR,
             name=f'z_{log_name}',
             nrow=self.n_rows,
             rname='recon_latent',

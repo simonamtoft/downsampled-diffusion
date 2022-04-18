@@ -6,3 +6,6 @@ from .utils import modify_config, min_max_norm_image, \
 from .rnd_seed import seed_everything
 from .eval_helpers import compute_vlb, \
     create_generator_loader, fix_samples
+from .evaluator import Evaluator
+from .paths import WORK_DIR, SAMPLE_DIR, CHECKPOINT_DIR, \
+    LOGGING_DIR, DATA_DIR
