@@ -72,7 +72,7 @@ def get_transforms(config:dict) -> list:
             data_transform.append(Lambda(inv_binarize))
 
     # add transforms for DDPM
-    elif model == 'ddpm':
+    elif model in ['ddpm', 'dddpm']:
         # scale input linearly to [-1, 1]
         data_transform.append(Lambda(lambda t: (t * 2) - 1))
         
