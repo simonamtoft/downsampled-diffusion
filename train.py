@@ -34,14 +34,14 @@ CONFIG_MODEL = {
         'u_mode': 'convolutional',
         'd_dropout': 0,
         'd_chans': 64,
-        'd_n_blocks': 8,
-        'u_n_blocks': 8,
-        'unet_in': 1,
+        'd_n_blocks': 3,
+        'u_n_blocks': 3,
+        'unet_in': 8,
         # define loss mode for reconstruction
         # if true, recon loss is computed directly by
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
-        'ae_loss': False,
-        't_rec_max': 500,
+        'ae_loss': True,
+        't_rec_max': 100,
     },
     'draw': {
         'h_dim': 400,
