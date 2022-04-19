@@ -1,5 +1,5 @@
 WORK_DIR = '../../../../../../work3/s173936/'
 SAMPLE_DIR = '../../../../../../work3/s173936/samples/'
 CHECKPOINT_DIR = '../../../../../../work3/s173936/checkpoints/'
-LOGGING_DIR = '../../../../../../work3/s173936/logging/'
+LOGGING_DIR = './results/logging/' #'../../../../../../work3/s173936/logging/'
 DATA_DIR = '../data'
