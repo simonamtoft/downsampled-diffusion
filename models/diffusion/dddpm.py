@@ -128,7 +128,7 @@ class DownsampleDDPM(DDPM):
         }
 
     @torch.no_grad()
-    def calc_vlb(self, x:tensor):
+    def test_losses(self, x:tensor):
         """
         Computes the entire variational lower-bound for the 
         entire Markov chain, measured in bits/dim for color images 
@@ -144,8 +144,9 @@ class DownsampleDDPM(DDPM):
         # downsample the input
         z = self.downsample(x)
         
-        # compute terms L_0, ..., L_{T-1}
+        # compute VLB and L_simple terms for t in [0, ..., T]
         vlb_t = []
+        L_simple_t = []
         for t in list(range(self.timesteps))[::-1]:
             t_batch = torch.full((z.shape[0],), t, device=self.device, dtype=torch.long)
             eps = torch.randn_like(z)
@@ -154,9 +155,16 @@ class DownsampleDDPM(DDPM):
             # calculate vlb for timestep t
             vlb_ = self.vlb_terms(z, z_t, t_batch)  # try scalar t instead of t_batch
             vlb_t.append(vlb_)
+            
+            # compute L_simple for timestep t
+            eps_hat = self.latent_model(z_t, t_batch)
+            L_simple = self.get_loss(eps, eps_hat).mean()
+            L_simple_t.append(L_simple)
 
-        # vlb for each timestep for each batch
+        # vlb and L_simple for each timestep for each batch
         vlb_t = torch.stack(vlb_t, dim=1)
+        L_simple_t = torch.stack(L_simple_t, dim=0)
+        assert L_simple_t.shape[0] == self.timesteps
         
         # compute the prior (L_T) for each batch
         prior = self.calc_prior(z)
@@ -164,10 +172,15 @@ class DownsampleDDPM(DDPM):
         # sum vlb and prior
         vlb = vlb_t.sum(dim=1) + prior
         
+        # sum L_simple
+        L_simple = L_simple_t.sum()
+        
         return {
             'vlb_t': vlb_t,
             'prior': prior,
-            'vlb': vlb
+            'vlb': vlb,
+            'L_simple_t': L_simple_t,
+            'L_simple': L_simple
         }
 
 

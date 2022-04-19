@@ -1,9 +1,5 @@
-import os
 import torch
 import numpy as np
-# from fid.inception import InceptionV3
-# from fid.fid_score import compute_statistics_of_generator, \
-#     load_statistics, calculate_frechet_distance
 from .utils import min_max_norm_image
 
 
@@ -12,9 +8,7 @@ def create_generator_loader(dataloader):
         if isinstance(batch, list):
             batch = batch[0]
         batch = batch.float().numpy() * 255.
-        # batch = batch.float().numpy()
         yield np.moveaxis(batch, 1, -1)
-        # yield batch.numpy()
 
 
 def compute_vlb(model, test_loader, device):
@@ -23,8 +17,21 @@ def compute_vlb(model, test_loader, device):
         x = x.to(device)
         losses = model.calc_vlb(x)
         vlb.append(losses['vlb'])
-    vlb = torch.stack(vlb, dim=1).mean().cpu().numpy()
+    vlb = torch.stack(vlb, dim=1).mean().cpu().numpy().item()
     return vlb
+
+
+def compute_test_losses(model, test_loader, device):
+    vlb = []
+    L_simple = []
+    for x, _ in iter(test_loader):
+        x = x.to(device)
+        losses = model.test_losses(x)
+        vlb.append(losses['vlb'])
+        L_simple.append(losses['L_simple'])
+    vlb = torch.stack(vlb, dim=1).mean().cpu().numpy().item()
+    L_simple = torch.stack(L_simple, dim=0).mean().cpu().numpy().item()
+    return vlb, L_simple
 
 
 def fix_samples(samples):
