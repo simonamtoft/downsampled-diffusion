@@ -71,14 +71,12 @@ def get_transforms(config:dict) -> list:
         elif dataset == 'omniglot':
             data_transform.append(Lambda(inv_binarize))
 
-    # add transforms for DDPM
+    # scale input linearly to [-1, 1] for DDPM
     elif model in ['ddpm', 'dddpm']:
-        # scale input linearly to [-1, 1]
         data_transform.append(Lambda(lambda t: (t * 2) - 1))
-        
-        # random flip data
-        if dataset in ['cifar10', 'cifar100', 'celeba', 'celeba_hq']: # 
-            data_transform.append(RandomHorizontalFlip())
+
+    if config['rnd_flip']:
+        data_transform.append(RandomHorizontalFlip())
         
     return data_transform   
 

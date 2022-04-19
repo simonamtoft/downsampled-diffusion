@@ -12,7 +12,8 @@ WANDB_PROJECT = 'ddpm-test'
 
 # standard config for every model
 CONFIG = {
-    'lr': 1e-3, # standard for VAE and DRAW models
+    'lr': 1e-3,         # standard for VAE and DRAW models
+    'rnd_flip': False,  # whether to use rnd flip transformation or not
 }
 
 # specific model architecture config
@@ -30,8 +31,8 @@ CONFIG_MODEL = {
         'val_split': 0,
     },
     'dddpm': {
-        'd_mode': 'convolutional', # deterministic convolutional_res
-        'u_mode': 'convolutional',
+        'd_mode': 'convolutional_res', # deterministic convolutional_res
+        'u_mode': 'convolutional_res',
         'd_dropout': 0,
         'd_chans': 64,
         'd_n_blocks': 3,
