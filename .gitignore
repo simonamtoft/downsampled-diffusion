@@ -136,3 +136,4 @@ wandb/*
 test.py
 *.sh
 logging/*
+jonathanho/*
