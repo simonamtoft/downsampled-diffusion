@@ -5,7 +5,8 @@ import wandb
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
     compute_vlb, create_generator_loader, Evaluator, \
-    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR
+    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR, \
+    compute_test_losses
 import tensorflow.compat.v1 as tf
 import numpy as np
 
@@ -14,13 +15,13 @@ saved_model = 'chq_x3_t100_d_3'
 saved_sample = saved_model
 # saved_sample = 'cifar_full_255'
 fid_samples = 10000
+reference_batch = 'celeba_hq_10k.npy'
 
 # Directories etc.
 WANDB_PROJECT = 'ddpm-test'
 device = 'cuda'
 
-# load saved state dict of model and its config file
-samples = np.load(os.path.join(SAMPLE_DIR, f'{saved_sample}.npy'))
+# load saved data
 save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
 config = save_data['config']
 if 'ema_model' in config:
@@ -28,17 +29,21 @@ if 'ema_model' in config:
 else:
     model_state_dict = save_data['model']
 
+# load samples and reference images
+samples = np.load(os.path.join(SAMPLE_DIR, f'{saved_sample}.npy'))
+reference = np.load(os.path.join(SAMPLE_DIR, reference_batch))
+
 # get data
-train_loader, _ = get_dataloader(config, data_root=DATA_DIR, device=device, train=True, val_split=0, train_transform=False)
+# train_loader, _ = get_dataloader(config, data_root=DATA_DIR, device=device, train=True, val_split=0, train_transform=False)
 test_loader = get_dataloader(config, data_root=DATA_DIR, device=device, train=False, train_transform=False)
-tmp = create_generator_loader(train_loader)
-tmp = list(tmp)
-g_data = create_generator_loader(train_loader)
+# tmp = create_generator_loader(train_loader)
+# tmp = list(tmp)
+# g_data = create_generator_loader(train_loader)
 
 # print min-max values
 print('\n\t\tMin\t\tMax')
 print(f'Sample:\t{samples.min():.2f}\t{samples.max():.2f}')
-print(f'Data:\t{np.min(tmp):.2f}\t{np.max(tmp):.2f}')
+print(f'Data:\t{np.min(reference):.2f}\t{np.max(reference):.2f}')
 
 # Setup DDPM model
 latent_model = Unet(config)
@@ -58,32 +63,35 @@ print(json.dumps(config, sort_keys=False, indent=4) + '\n')
 metrics = {}
 
 ### COMPUTE METRICS ###
-# compute VLB
-metrics['vlb'] = compute_vlb(model, test_loader, device)
+# compute VLB and L_simple
+# metrics['vlb'] = compute_vlb(model, test_loader, device)
+vlb, L_simple = compute_test_losses(model, test_loader, device)
+metrics['vlb'] = vlb
+metrics['L_simple'] = L_simple
 
 # compute other metrics using Evaluator
-config = tf.ConfigProto(
-    allow_soft_placement=True  # allows DecodeJpeg to run on CPU in Inception graph
-)
-config.gpu_options.allow_growth = True
-evaluator = Evaluator(tf.Session(config=config))
-print("warming up TensorFlow...")
-evaluator.warmup()
-print("computing reference batch activations...")
-ref_acts = evaluator.read_activations(g_data)
-print("computing/reading reference batch statistics...")
-ref_stats, ref_stats_spatial = evaluator.read_statistics(ref_acts)
-print("computing sample batch activations...")
-sample_acts = evaluator.read_activations(samples)
-print("computing/reading sample batch statistics...")
-sample_stats, sample_stats_spatial = evaluator.read_statistics(sample_acts)
-print("Computing evaluations...")
-metrics['is'] = evaluator.compute_inception_score(sample_acts[0])
-metrics['fid'] = sample_stats.frechet_distance(ref_stats)
-metrics['sfid'] = sample_stats_spatial.frechet_distance(ref_stats_spatial)
-prec, recall = evaluator.compute_prec_recall(ref_acts[0], sample_acts[0])
-metrics['precision'] = prec
-metrics['recall'] = recall
+# config = tf.ConfigProto(
+#     allow_soft_placement=True  # allows DecodeJpeg to run on CPU in Inception graph
+# )
+# config.gpu_options.allow_growth = True
+# evaluator = Evaluator(tf.Session(config=config))
+# print("warming up TensorFlow...")
+# evaluator.warmup()
+# print("computing reference batch activations...")
+# ref_acts = evaluator.read_activations(g_data)
+# print("computing/reading reference batch statistics...")
+# ref_stats, ref_stats_spatial = evaluator.read_statistics(ref_acts)
+# print("computing sample batch activations...")
+# sample_acts = evaluator.read_activations(samples)
+# print("computing/reading sample batch statistics...")
+# sample_stats, sample_stats_spatial = evaluator.read_statistics(sample_acts)
+# print("Computing evaluations...")
+# metrics['is'] = evaluator.compute_inception_score(sample_acts[0])
+# metrics['fid'] = sample_stats.frechet_distance(ref_stats)
+# metrics['sfid'] = sample_stats_spatial.frechet_distance(ref_stats_spatial)
+# prec, recall = evaluator.compute_prec_recall(ref_acts[0], sample_acts[0])
+# metrics['precision'] = prec
+# metrics['recall'] = recall
 
 # Display resulting metrics
 print('\nResults:')
