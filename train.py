@@ -43,6 +43,7 @@ CONFIG_MODEL = {
         # z = downsample(x), x_hat = upsample(z), l_recon = L2(x, x_hat)
         'ae_loss': True,
         't_rec_max': 100,
+        'force_latent': True,
     },
     'draw': {
         'h_dim': 400,

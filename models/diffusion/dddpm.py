@@ -18,6 +18,9 @@ class DownsampleDDPM(DDPM):
 
         # original shape
         self.x_shape = [self.in_channels, self.image_size, self.image_size]
+        
+        # whether to force latent in [-1, 1]
+        self.force_latent = config['force_latent']
 
         # latent shape
         unet_in = config['unet_in']
@@ -86,15 +89,16 @@ class DownsampleDDPM(DDPM):
         assert list(x_sample.shape)[1:] == self.x_shape, f'mismatch between {list(x_sample.shape)[1:]} and {self.x_shape}'
         return x_sample, z_sample
 
-    def rescaled_downsample(self, x:tensor, rescale:bool=False) -> tensor:
+    def rescaled_downsample(self, x:tensor) -> tensor:
         """Downsample input x to z-space and rescale output z to be in [-1, 1]"""
         # downsample input
         z = self.downsample(x)
         assert list(z.shape)[1:] == self.sample_shape, f'mismatch between {list(z.shape)[1:]} and {self.sample_shape}'
         
         # rescale to [-1, 1] as DDPM expects
-        if rescale:
-            z = min_max_norm_image(z) * 2. - 1.
+        if self.force_latent:
+            # z = min_max_norm_image(z) * 2. - 1.
+            z = torch.tanh(z)
         return z
 
     def loss_recon(self, x:tensor, z_hat:tensor, t:tensor) -> tensor:
@@ -108,7 +112,7 @@ class DownsampleDDPM(DDPM):
         """Train loss computations for the Downsample DDPM architecture."""
         
         # downsample x to z
-        z = self.rescaled_downsample(x, rescale=False)
+        z = self.rescaled_downsample(x)
 
         # foward pass through DDPM
         eps = torch.randn_like(z)
@@ -142,7 +146,7 @@ class DownsampleDDPM(DDPM):
         """
         
         # downsample the input
-        z = self.downsample(x)
+        z = self.rescaled_downsample(x)
         
         # compute VLB and L_simple terms for t in [0, ..., T]
         vlb_t = []
