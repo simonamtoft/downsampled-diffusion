@@ -10,10 +10,10 @@ from utils import get_color_channels, fix_samples, \
     CHECKPOINT_DIR, SAMPLE_DIR
 
 device = 'cuda'
-saved_model = 'chq_x3_AE_4'
+saved_model = 'chq_x3_AE_latent'
 fid_samples = 10000
 batch_size = 192
-# sample_every = 10
+sample_every = 1
 
 # load saved state dict of model and its config file
 save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
@@ -48,7 +48,7 @@ latent_list = []
 time_start = time.time()
 n_batches = int(np.ceil(fid_samples/config['batch_size']))
 for i in tqdm(range(n_batches), desc='sampling from model'):
-    samples = model.sample(config['batch_size']) #, sample_every
+    samples = model.sample(config['batch_size'], sample_every)
     if config['model'] == 'dddpm':
         samples, latent_samples = samples[0], samples[1]
         sample_list.append(fix_samples(samples))
@@ -62,8 +62,6 @@ print(f'Using batch size {config["batch_size"]}')
 print(f'Total time: {sampling_time}')
 print(f'Sample time: {sampling_time/fid_samples}')
 print(f'Batch time: {sampling_time/n_batches}')
-
-saved_model += '_s10'
 
 # Input space samples
 save_path = os.path.join(SAMPLE_DIR, saved_model)
