@@ -227,7 +227,7 @@ class DDPM(nn.Module):
         return mean + nonzero_mask * (0.5 * log_variance).exp() * eps
     
     @torch.no_grad()
-    def p_sample_loop(self, shape:tuple):
+    def p_sample_loop(self, shape:tuple, every:int=1):
         """
         Generate samples from the model.
         
@@ -248,9 +248,9 @@ class DDPM(nn.Module):
         return img
 
     @torch.no_grad()
-    def sample(self, batch_size:int=16):
+    def sample(self, batch_size:int=16, every:int=1):
         """Sample a batch of images from model."""
-        return self.p_sample_loop((batch_size, *self.sample_shape))
+        return self.p_sample_loop((batch_size, *self.sample_shape), every)
 
     def q_sample(self, x:tensor, t:tensor, eps:tensor):
         """
