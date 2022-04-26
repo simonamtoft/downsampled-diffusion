@@ -4,14 +4,13 @@ import torch
 import wandb
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
-    compute_vlb, create_generator_loader, Evaluator, \
-    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR, \
-    compute_test_losses
+    Evaluator, compute_test_losses, \
+    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR
 import tensorflow.compat.v1 as tf
 import numpy as np
 
 # ONLY CHANGE STUFF HERE
-saved_model = 'chq_x3_t100_4' # chq_x3_t100_4
+saved_model = 'chq_x3_AE_rnd'
 saved_sample = saved_model
 # saved_sample = 'cifar_full_255'
 fid_samples = 10000
