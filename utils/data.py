@@ -10,7 +10,11 @@ from torchvision.datasets import CelebA, CIFAR10, \
 from torch.utils.data import DataLoader
 
 DATA_ROOT = './data/'
-DATASETS = ['cifar10', 'cifar100', 'mnist', 'omniglot', 'celeba', 'celeba_hq']
+DATASETS = [
+    'cifar10', 'cifar100', 
+    'mnist', 'omniglot', 
+    'celeba', 'celeba_hq_65', 'celeba_hq'
+]
 
 
 def binarize(x:torch.Tensor) -> torch.Tensor:
@@ -136,7 +140,9 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         data = MNIST(data_root, **data_args)
     elif dataset_name == 'omniglot':
         data = Omniglot(data_root, **data_args)
-    elif dataset_name in ['celeba', 'celeba_hq']:
+    elif dataset_name == 'celeba':
+        data = CelebA(data_root, **data_args)
+    elif dataset_name in ['celeba_hq', 'celeba_hq_64']:
         split_ = 'train' if train else 'test'
         celeba_hq_dir = os.path.join(data_root, dataset_name, split_)
         data = DatasetFolder(celeba_hq_dir, loader=img_loader, extensions=('jpg'), transform=data_transform)
@@ -196,7 +202,7 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
 
 
 def get_color_channels(dataset:str) -> int:
-    if dataset in ['cifar10', 'cifar100', 'celeba', 'celeba_hq']:
+    if dataset in ['cifar10', 'cifar100', 'celeba', 'celeba_hq', 'celeba_hq_64']:
         return 3
     elif dataset in ['mnist', 'omniglot']:
         return 1
@@ -234,7 +240,7 @@ def get_label_map(dataset:str) -> list:
         ]
     elif dataset == 'mnist':
         return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-    elif dataset in ['celeba', 'celeba_hq']:
+    elif dataset in ['celeba', 'celeba_hq', 'celeba_hq_64']:
         return ['female', 'male']
     else:
         raise Exception(f'Dataset {dataset} does not have a label map implemented...')
