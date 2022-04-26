@@ -43,12 +43,15 @@ net = net.cuda()
 # Generation
 time_start = time.time()
 sample_list = []
-for i in tqdm(range(int(np.ceil(fid_samples/batch_size))), desc='sampling from model'):
+n_batches = int(np.ceil(fid_samples/batch_size))
+for i in tqdm(range(n_batches), desc='sampling from model'):
     samples = sampling(net, (batch_size, 3, 256, 256), T, Alpha, Alpha_bar, Sigma)
     sample_list.append(fix_samples(samples))
-time_diff = time.time() - time_start
-print(f'Generated {fid_samples} samples in {time_diff} seconds')
-print(f'Average sampling time: {time_diff/fid_samples} (seconds per sample)')
-output_directory = os.path.join(SAMPLE_DIR, saved_model)
-print(f'Saving to {output_directory}')
-np.save(output_directory, sample_list)
+sampling_time = time.time() - time_start
+save_path = os.path.join(SAMPLE_DIR, saved_model + '_1')
+print(f'Using batch size {batch_size}')
+print(f'Samples saved to {save_path}')
+print(f'Total time: {sampling_time}')
+print(f'Sample time: {sampling_time/fid_samples}')
+print(f'Batch time: {sampling_time/n_batches}')
+np.save(save_path, sample_list)
