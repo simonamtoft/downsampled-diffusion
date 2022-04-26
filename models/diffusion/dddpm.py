@@ -69,12 +69,13 @@ class DownsampleDDPM(DDPM):
         z_recon = self.predict_x_from_eps(z_t, t, eps_hat, clip=False)
 
         # upsample reconstruction
+        # x_recon = self.rescaled_upsample(z_recon)
         x_recon = self.upsample(z_recon)
         assert list(x_recon.shape)[1:] == self.x_shape
         return x_recon, z_recon
 
     @torch.no_grad()
-    def sample(self, batch_size:int=16) -> tuple:
+    def sample(self, batch_size:int=16, every:int=1) -> tuple:
         """
         Sample a batch of images in latent space, and upsample these to original
         image space.
@@ -83,7 +84,8 @@ class DownsampleDDPM(DDPM):
             x_sample (tensor):    A tensor of batch_size samples in original image space.
             z_sample (tensor):    A tensor of batch_size samples in latent space.
         """
-        z_sample = self.p_sample_loop((batch_size, *self.sample_shape))
+        z_sample = self.p_sample_loop((batch_size, *self.sample_shape), every)
+        # x_sample = self.rescaled_upsample(z_sample)
         x_sample = self.upsample(z_sample)
         assert list(z_sample.shape)[1:] == self.sample_shape, f'mismatch between {list(z_sample.shape)[1:]} and {self.sample_shape}'
         assert list(x_sample.shape)[1:] == self.x_shape, f'mismatch between {list(x_sample.shape)[1:]} and {self.x_shape}'
@@ -97,11 +99,22 @@ class DownsampleDDPM(DDPM):
         
         # rescale to [-1, 1] as DDPM expects
         if self.force_latent:
-            # z = min_max_norm_image(z) * 2. - 1.
             z = torch.tanh(z)
         return z
 
+    def rescaled_upsample(self, z:tensor) -> tensor:
+        """Upsample input z to x-space and rescale output x to be in [-1, 1]"""
+        # upsample input
+        x = self.upsample(z)
+        assert list(x.shape)[1:] == self.x_shape, f'mismatch between {list(x.shape)[1:]} and {self.x_shape}'
+        
+        # rescale to [-1, 1] as data originally is
+        if self.force_latent:
+            x = torch.tanh(x)
+        return x
+
     def loss_recon(self, x:tensor, z_hat:tensor, t:tensor) -> tensor:
+        # x_hat = self.rescaled_upsample(z_hat)
         x_hat = self.upsample(z_hat)
         assert x_hat.shape == x.shape, f'mismatch between {x_hat.shape} and {x.shape}'
         loss = self.flatten_loss(self.get_loss(x, x_hat))
