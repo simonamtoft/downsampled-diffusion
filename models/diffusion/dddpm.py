@@ -69,8 +69,8 @@ class DownsampleDDPM(DDPM):
         z_recon = self.predict_x_from_eps(z_t, t, eps_hat, clip=False)
 
         # upsample reconstruction
-        # x_recon = self.rescaled_upsample(z_recon)
-        x_recon = self.upsample(z_recon)
+        x_recon = self.rescaled_upsample(z_recon)
+        # x_recon = self.upsample(z_recon)
         assert list(x_recon.shape)[1:] == self.x_shape
         return x_recon, z_recon
 
@@ -85,8 +85,8 @@ class DownsampleDDPM(DDPM):
             z_sample (tensor):    A tensor of batch_size samples in latent space.
         """
         z_sample = self.p_sample_loop((batch_size, *self.sample_shape), every)
-        # x_sample = self.rescaled_upsample(z_sample)
-        x_sample = self.upsample(z_sample)
+        x_sample = self.rescaled_upsample(z_sample)
+        # x_sample = self.upsample(z_sample)
         assert list(z_sample.shape)[1:] == self.sample_shape, f'mismatch between {list(z_sample.shape)[1:]} and {self.sample_shape}'
         assert list(x_sample.shape)[1:] == self.x_shape, f'mismatch between {list(x_sample.shape)[1:]} and {self.x_shape}'
         return x_sample, z_sample
@@ -114,8 +114,8 @@ class DownsampleDDPM(DDPM):
         return x
 
     def loss_recon(self, x:tensor, z_hat:tensor, t:tensor) -> tensor:
-        # x_hat = self.rescaled_upsample(z_hat)
-        x_hat = self.upsample(z_hat)
+        x_hat = self.rescaled_upsample(z_hat)
+        # x_hat = self.upsample(z_hat)
         assert x_hat.shape == x.shape, f'mismatch between {x_hat.shape} and {x.shape}'
         loss = self.flatten_loss(self.get_loss(x, x_hat))
         loss = torch.where(t < self.t_rec_max, loss, torch.zeros_like(loss))
