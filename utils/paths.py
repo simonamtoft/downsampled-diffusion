@@ -1,6 +1,7 @@
 WORK_DIR = '../../../../../../work3/s173936/'
 SAMPLE_DIR = '../../../../../../work3/s173936/samples/'
 CHECKPOINT_DIR = '../../../../../../work3/s173936/checkpoints/'
+REFERENCE_DIR = '../../../../../../work3/s173936/reference/'
 LOGGING_DIR = './results/logging/' #'../../../../../../work3/s173936/logging/'
 DATA_DIR = '../data'
 INCEPTION_V3_PATH = '../../../../../../work3/s173936/inception/classify_image_graph_def.pb'

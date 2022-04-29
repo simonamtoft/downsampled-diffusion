@@ -1,3 +1,5 @@
+# reference: 
+# https://github.com/openai/guided-diffusion/blob/main/evaluations/evaluator.py
 import io
 import os
 import random
@@ -16,9 +18,10 @@ import tensorflow.compat.v1 as tf
 from scipy import linalg
 from tqdm.auto import tqdm
 
+from .paths import INCEPTION_V3_PATH
+
 INCEPTION_V3_URL = "https://openaipublic.blob.core.windows.net/diffusion/jul-2021/ref_batches/classify_image_graph_def.pb"
 # INCEPTION_V3_PATH = "classify_image_graph_def.pb"
-from .paths import INCEPTION_V3_PATH
 
 FID_POOL_NAME = "pool_3:0"
 FID_SPATIAL_NAME = "mixed_6/conv:0"
