@@ -5,16 +5,14 @@ import wandb
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
     Evaluator, compute_test_losses, \
-    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR
+    SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR, REFERENCE_DIR
 import tensorflow.compat.v1 as tf
 import numpy as np
 
 # ONLY CHANGE STUFF HERE
-saved_model = 'chq_x3_AE_rnd'
+saved_model = 'chq_x3_t100'
 saved_sample = saved_model
-# saved_sample = 'cifar_full_255'
 fid_samples = 10000
-reference_batch = 'celeba_hq_10k.npy'
 
 # Directories etc.
 WANDB_PROJECT = 'ddpm-test'
@@ -28,9 +26,22 @@ if 'ema_model' in config:
 else:
     model_state_dict = save_data['model']
 
+# get name of reference batch
+if config['dataset'] == 'mnist':
+    reference_batch = 'mnist_32_10k.npy'
+elif config['dataset'] == 'celeba_hq':
+    reference_batch = 'celeba_hq_256_10k.npy'
+elif config['dataset'] == 'celeba_hq_64':
+    reference_batch = 'celeba_hq_64_10k.npy'
+elif config['dataset'] == 'cifar10':
+    if fid_samples == 10000:
+        reference_batch = 'cifar10_10k.npy'
+    elif fid_samples == 50000:
+        reference_batch = 'cifar10_50k.npy'
+
 # load samples and reference images and test data
 samples = np.load(os.path.join(SAMPLE_DIR, f'{saved_sample}.npy'))
-reference = np.load(os.path.join(SAMPLE_DIR, reference_batch))
+reference = np.load(os.path.join(REFERENCE_DIR, reference_batch))
 test_loader = get_dataloader(config, data_root=DATA_DIR, device=device, train=False, train_transform=False)
 
 # print min-max values
@@ -86,5 +97,6 @@ metrics['recall'] = recall
 
 # Display resulting metrics
 print('\nResults:')
+print(f'Using reference batch: {reference_batch}')
 print(json.dumps(metrics, sort_keys=False, indent=4) + '\n')
 # wandb.finish()
