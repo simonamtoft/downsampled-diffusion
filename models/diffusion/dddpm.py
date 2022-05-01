@@ -147,7 +147,7 @@ class DownsampleDDPM(DDPM):
     @torch.no_grad()
     def test_losses(self, x:tensor):
         z = self.rescaled_downsample(x)
-        return self.test_losses_(x)
+        return self.test_losses_(z)
 
 
 class DownsampleDDPMAutoencoder(DownsampleDDPM):
