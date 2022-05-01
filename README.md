@@ -40,6 +40,8 @@ This GitHub repository uses the following datasets: `MNIST`, `CIFAR10`, `CelebA`
 If you are running weight and biases (wandb) as done in this project, it might be a good idea to once in a while delete local files that are synced to the website with the following command `wandb sync --clean`.
 
 ## References
+- Yann LeCun, Corinna Cortes, Christopher J.C. Burges, [The MNIST Database](http://yann.lecun.com/exdb/mnist/)
+- Alex Krizhevsky, 2009, [Learning Multiple Layers of Features from Tiny Images, Chapter 3](https://www.cs.toronto.edu/~kriz/learning-features-2009-TR.pdf)
 - Ziwei Liu, Ping Luo, Xiaogang Wang, Xiaoou Tang, 2014, [Deep Learning Face Attributes in the Wild, arXiv:1411.7766](https://arxiv.org/abs/1411.7766v3)
 - Tero Karras, Timo Aila, Samuli Laine, Jaakko Lehtinen, 2017, [Progressive Growing of GANs for Improved Quality, Stability, and Variation, arXiv:1710.10196](https://arxiv.org/abs/1710.10196v3)
 - Cheng-Han Lee, Ziwei Liu, Lingyun Wu, Ping Luo, 2019, [MaskGAN: Towards Diverse and Interactive Facial Image Manipulation, arXiv:1907.11922](https://arxiv.org/abs/1907.11922)
