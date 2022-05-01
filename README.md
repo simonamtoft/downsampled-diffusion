@@ -1,4 +1,4 @@
-# ddpm
+# Downsampled Denoising Diffusion Probabilistic Models
 
 ## Package Requirements
 
@@ -13,37 +13,26 @@ Then install torch for GPU (CUDA 11.1) with:
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
-## Data Requirements
 
-<!-- Start by downloading the LSUN datasets `tower` and `church_outdoor` and the test set, by running the following commands inside the `data` folder:
+## Datasets
 
-```cli
-python download_lsun.py -c tower
-python download_lsun.py -c church_outdoor
-python download_lsun.py -c test
-```
+This GitHub repository uses the following datasets: `MNIST`, `CIFAR10`, `CelebA` and `CelebAMask-HQ`. The `MNIST` and `CIFAR10` datasets are simply downloaded using the `download=True` argument in their respective `torchvision.datasets` class. The `CelebA` dataset is downloaded from [Kaggle](https://www.kaggle.com/datasets/jessicali9530/celeba-dataset) and then resized to `64 x 64`, while the `CelebAMask-HQ` is downloaded from [a GitHub repo](https://github.com/ndb796/CelebA-HQ-Face-Identity-and-Attributes-Recognition-PyTorch) where two instances are created by resizing the images to `256 x 256` and `64 x 64` respectively. For easy download you should be able to download all the datasets from [my Google Drive folder](https://drive.google.com/drive/folders/15sfoeQOmZ3DyEEeV4qfIe1GfRvarLkoG?usp=sharing).
 
-Then download the resized ImageNet 32x32 dataset, and convert it such that it can be used with torchvision, following the instructions from [NVAE GitHub](https://github.com/NVlabs/NVAE):
+### Samples from `MNIST` training set
+![MNIST training examples](/images/mnist.png)
 
-```cli
-cd data
-mkdir imagenet-oord
-cd imagenet-oord
-wget https://storage.googleapis.com/glow-demo/data/imagenet-oord-tfr.tar
-tar -xvf imagenet-oord-tfr.tar
-python convert_tfrecord_to_lmdb.py --dataset=imagenet-oord_32 --tfr_path=$DATA_DIR/imagenet-oord/mnt/host/imagenet-oord-tfr --lmdb_path=/imagenet-oord/imagenet-oord-lmdb_32 --split=train
-python convert_tfrecord_to_lmdb.py --dataset=imagenet-oord_32 --tfr_path=$DATA_DIR/imagenet-oord/mnt/host/imagenet-oord-tfr --lmdb_path=/imagenet-oord/imagenet-oord-lmdb_32 --split=validation
-``` -->
+### Samples from `CIFAR10` training set
+![CIFAR10 training examples](/images/cifar10.png)
 
-The rest of the datasets is downloaded using the `Explore Datasets.ipynb` python notebook.
+### Samples from `CelebA` training set
+![CelebA training examples](/images/celeba.png)
 
-<!-- If you want to perform mixed precision training, a couple of things are required. Firstly, your system is required to have `nvcc` (the NVIDIA CUDA compiler), which can be installed from the [NVIDIA developer website](https://developer.nvidia.com/cuda-downloads) and following on-screen instructions. Note that the torch installation above uses [CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive), which then should be downloaded instead. Secondly, you should download NVIDIAs `apex` package, which is done by:
+### Samples from `CelebAMask-HQ 256x256` training set
+![CelebAMask-HQ-256 training examples](/images/celeba_hq.png)
 
-```cli
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
-``` -->
+### Samples from `CelebAMask-HQ 64x64` training set
+![CelebAMask-HQ-64 training examples](/images/celeba_hq_64.png)
+
 
 ## Additional Notes
 
@@ -51,8 +40,12 @@ pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp
 If you are running weight and biases (wandb) as done in this project, it might be a good idea to once in a while delete local files that are synced to the website with the following command `wandb sync --clean`.
 
 ## References
-
-- Fisher Yu, Ari Seff, Yinda Zhang, Shuran Song, Thomas Funkhouser & Jianxiong Xiao: LSUN Construction of a Large-scale Image Dataset using Deep Learning with Humans in the Loop, [arXiv:1506.03365](https://arxiv.org/abs/1506.03365)
-- Alex Krizhevsky, 2009, [Learning Multiple Layers of Features from Tiny Images](https://www.cs.toronto.edu/~kriz/learning-features-2009-TR.pdf), *Chapter 3*
-- Olga Russakovsky*, Jia Deng*, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein, Alexander C. Berg and Li Fei-Fei. (* = equal contribution) ImageNet Large Scale Visual Recognition Challenge. IJCV, 2015. [arXiv:1409.0575](https://arxiv.org/abs/1409.0575)
-- Patryk Chrabaszcz, Ilya Loshchilov & Frank Hutter: A Downsampled Variant of ImageNet as an Alternative to the CIFAR datasets, [arXiv:1707.08819](https://arxiv.org/abs/1707.08819)
+- Yann LeCun, Corinna Cortes, Christopher J.C. Burges, [The MNIST Database](http://yann.lecun.com/exdb/mnist/)
+- Alex Krizhevsky, 2009, [Learning Multiple Layers of Features from Tiny Images, Chapter 3](https://www.cs.toronto.edu/~kriz/learning-features-2009-TR.pdf)
+- Ziwei Liu, Ping Luo, Xiaogang Wang, Xiaoou Tang, 2014, [Deep Learning Face Attributes in the Wild, arXiv:1411.7766](https://arxiv.org/abs/1411.7766v3)
+- Tero Karras, Timo Aila, Samuli Laine, Jaakko Lehtinen, 2017, [Progressive Growing of GANs for Improved Quality, Stability, and Variation, arXiv:1710.10196](https://arxiv.org/abs/1710.10196v3)
+- Cheng-Han Lee, Ziwei Liu, Lingyun Wu, Ping Luo, 2019, [MaskGAN: Towards Diverse and Interactive Facial Image Manipulation, arXiv:1907.11922](https://arxiv.org/abs/1907.11922)
+- https://github.com/lucidrains/denoising-diffusion-pytorch
+- https://github.com/hojonathanho/diffusion
+- https://github.com/openai/guided-diffusion
+- https://github.com/openai/improved-diffusion
