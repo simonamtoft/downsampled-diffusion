@@ -137,3 +137,6 @@ test.py
 *.sh
 logging/*
 jonathanho/*
+fengnima_pretrained/*
+evaluate_fengnima.py
+generate_fengnima.py
