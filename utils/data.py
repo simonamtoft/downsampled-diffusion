@@ -128,24 +128,25 @@ def get_dataloader(config:dict, device:str, train:bool=True, data_root:str=DATA_
         data_transform = Compose(get_eval_transforms(config))
     
     # Initialize data arguments
-    data_args = {'download': False, 'transform': data_transform, 'train': train}
+    data_args = {'download': False, 'transform': data_transform}
 
     # Get data
     dataset_name = config['dataset']
     if dataset_name == 'cifar10':
+        data_args['train'] = train
         data = CIFAR10(data_root, **data_args)
     elif dataset_name == 'cifar100':
+        data_args['train'] = train
         data = CIFAR100(data_root, **data_args)
     elif dataset_name == 'mnist':
+        data_args['train'] = train
         data = MNIST(data_root, **data_args)
     elif dataset_name == 'omniglot':
         data = Omniglot(data_root, **data_args)
-    elif dataset_name == 'celeba':
-        data = CelebA(data_root, **data_args)
-    elif dataset_name in ['celeba_hq', 'celeba_hq_64']:
+    elif dataset_name in ['celeba', 'celeba_hq', 'celeba_hq_64']:
         split_ = 'train' if train else 'test'
-        celeba_hq_dir = os.path.join(data_root, dataset_name, split_)
-        data = DatasetFolder(celeba_hq_dir, loader=img_loader, extensions=('jpg'), transform=data_transform)
+        celeba_dir = os.path.join(data_root, dataset_name, split_)
+        data = DatasetFolder(celeba_dir, loader=img_loader, extensions=('jpg'), transform=data_transform)
     else:
         raise Exception(f'Dataset {dataset_name} not implemented...')
 
