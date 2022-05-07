@@ -10,7 +10,7 @@ from utils import get_color_channels, fix_samples, \
     CHECKPOINT_DIR, SAMPLE_DIR
 
 device = 'cuda'
-saved_model = 'chq_x3_AE_latent'
+saved_model = 'chq_x3_t100_act'
 fid_samples = 10000
 batch_size = 192
 sample_every = 1
@@ -41,7 +41,8 @@ model = model.to(device)
 model.eval()
 
 # compute and save samples
-print(f'\nGenerating samples from checkpoint {saved_model} with configuration dict:')
+print(f'\nGenerating samples from checkpoint {saved_model}.')
+print(f'Trained for {save_data["step"]} steps with configuration dict:')
 print(json.dumps(config, sort_keys=False, indent=4) + '\n')
 sample_list = []
 latent_list = []

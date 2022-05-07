@@ -6,13 +6,14 @@ from trainers import setup_trainer
 from utils import CHECKPOINT_DIR, DATA_DIR
 
 WANDB_PROJECT = 'ddpm-test'
-CHECKPOINT_NAME = 'chq64_1.pt'
-# chq_x3_AE_rnd_2
-# chq_x3_AE_latent_3
-# chq64_1
+CHECKPOINT_NAME = 'chq_x2_AE_act_3.pt'
+# chq_x3_AE_act_rnd_3
+# chq_x4_AE_act_3
+# chq_x2_AE_act_3
 
 if __name__ == '__main__':
     # load checkpoint
+    print('Loading checkpoint {CHECKPOINT_NAME}')
     checkpoint = torch.load(os.path.join(CHECKPOINT_DIR, CHECKPOINT_NAME))
     config = checkpoint['config']
     if config['model'] == 'dddpm':
@@ -27,12 +28,9 @@ if __name__ == '__main__':
     trainer, config = setup_trainer(config, True, DATA_DIR, WANDB_PROJECT, seed=0)
     trainer.load_checkpoint(checkpoint)
     
-    # print out train configuration
-    print(f'\nTraining from checkpoint {CHECKPOINT_NAME}')
+    # start training from checkpoint
     print(f'Starting at step {checkpoint["step"]}.')
     print('Using configuration dict:')
     print(json.dumps(config, sort_keys=False, indent=4) + '\n')
-    
-    # start training from checkpoint
     trainer.train()
     print("train_from_checkpoint.py script finished!")
