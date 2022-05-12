@@ -9,4 +9,4 @@ from .eval_helpers import compute_vlb, \
     compute_test_losses
 from .evaluator import Evaluator
 from .paths import WORK_DIR, SAMPLE_DIR, CHECKPOINT_DIR, \
-    LOGGING_DIR, DATA_DIR, REFERENCE_DIR
+    LOGGING_DIR, DATA_DIR, REFERENCE_DIR, SAMPLE_LATENT_DIR

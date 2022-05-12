@@ -7,10 +7,10 @@ from tqdm import tqdm
 
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_color_channels, fix_samples, \
-    CHECKPOINT_DIR, SAMPLE_DIR
+    CHECKPOINT_DIR, SAMPLE_DIR, SAMPLE_LATENT_DIR
 
 device = 'cuda'
-saved_model = 'chq_x3_t100_act'
+saved_model = 'chq_x2_AE_act'
 fid_samples = 10000
 batch_size = 192
 sample_every = 1
@@ -71,6 +71,6 @@ print(f'Samples saved to {save_path}')
 
 # Latent samples
 if config['model'] == 'dddpm':
-    save_path = os.path.join(SAMPLE_DIR, f'{saved_model}_latent')
+    save_path = os.path.join(SAMPLE_LATENT_DIR, f'{saved_model}')
     np.save(save_path, latent_list, allow_pickle=False)
     print(f'Latent samples saved to {save_path}')

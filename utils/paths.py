@@ -1,5 +1,6 @@
 WORK_DIR = '../../../../../../work3/s173936/'
 SAMPLE_DIR = '../../../../../../work3/s173936/samples/'
+SAMPLE_LATENT_DIR = '../../../../../../work3/s173936/samples_latent/'
 CHECKPOINT_DIR = '../../../../../../work3/s173936/checkpoints/'
 REFERENCE_DIR = '../../../../../../work3/s173936/reference/'
 LOGGING_DIR = './results/logging/' #'../../../../../../work3/s173936/logging/'
