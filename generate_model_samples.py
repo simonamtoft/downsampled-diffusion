@@ -7,21 +7,19 @@ from tqdm import tqdm
 
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_color_channels, fix_samples, \
-    CHECKPOINT_DIR, SAMPLE_DIR, SAMPLE_LATENT_DIR
+    get_model_state_dict, \
+    CHECKPOINT_DIR, SAMPLE_DIR, SAMPLE_LATENT_DIR 
 
 device = 'cuda'
-saved_model = 'chq_x2_AE_act'
-fid_samples = 10000
+saved_model = 'celeba'
+fid_samples = 50000
 batch_size = 192
 sample_every = 1
 
 # load saved state dict of model and its config file
 save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
+model_state_dict = get_model_state_dict(save_data)
 config = save_data['config']
-if 'ema_model' in save_data:
-    model_state_dict = save_data['ema_model']
-else:
-    model_state_dict = save_data['model']
 config['batch_size'] = batch_size
 
 if 'force_latent' not in config:
@@ -41,7 +39,7 @@ model = model.to(device)
 model.eval()
 
 # compute and save samples
-print(f'\nGenerating samples from checkpoint {saved_model}.')
+print(f'\nGenerating {fid_samples} samples from checkpoint {saved_model}.')
 print(f'Trained for {save_data["step"]} steps with configuration dict:')
 print(json.dumps(config, sort_keys=False, indent=4) + '\n')
 sample_list = []

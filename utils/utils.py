@@ -46,3 +46,9 @@ def flat_bits(x:torch.tensor):
     Returns the bits per dim of the input tensor.
     """
     return reduce_mean(x) / np.log(2.)
+
+
+def get_model_state_dict(save_data):
+    if 'ema_model' in save_data:
+        return save_data['ema_model']
+    return save_data['model']
