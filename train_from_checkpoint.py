@@ -6,14 +6,11 @@ from trainers import setup_trainer
 from utils import CHECKPOINT_DIR, DATA_DIR
 
 WANDB_PROJECT = 'ddpm-test'
-CHECKPOINT_NAME = 'chq_x2_AE_act_3.pt'
-# chq_x3_AE_act_rnd_3
-# chq_x4_AE_act_3
-# chq_x2_AE_act_3
+CHECKPOINT_NAME = 'celeba_4.pt'
 
 if __name__ == '__main__':
     # load checkpoint
-    print('Loading checkpoint {CHECKPOINT_NAME}')
+    print(f'Loading checkpoint {CHECKPOINT_NAME}')
     checkpoint = torch.load(os.path.join(CHECKPOINT_DIR, CHECKPOINT_NAME))
     config = checkpoint['config']
     if config['model'] == 'dddpm':
@@ -27,7 +24,7 @@ if __name__ == '__main__':
             config['force_latent'] = False
     trainer, config = setup_trainer(config, True, DATA_DIR, WANDB_PROJECT, seed=0)
     trainer.load_checkpoint(checkpoint)
-    
+
     # start training from checkpoint
     print(f'Starting at step {checkpoint["step"]}.')
     print('Using configuration dict:')
