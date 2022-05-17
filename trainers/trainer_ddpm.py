@@ -33,7 +33,7 @@ class TrainerDDPM(Trainer):
 
         # specific DDPM trainer stuff
         self.gradient_accumulate_every = 2
-        self.logging_every = 1000
+        self.logging_every = 10000
 
         # EMA model for DDPM training
         self.use_ema = config['ema_decay'] > 0
