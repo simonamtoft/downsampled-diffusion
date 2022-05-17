@@ -227,7 +227,7 @@ class DDPM(nn.Module):
         return mean + nonzero_mask * (0.5 * log_variance).exp() * eps
     
     @torch.no_grad()
-    def p_sample_loop(self, shape:tuple, every:int=1):
+    def p_sample_loop(self, shape:tuple, every:int=1, early_stop:int=None):
         """
         Generate samples from the model.
         
@@ -242,15 +242,16 @@ class DDPM(nn.Module):
         img = torch.randn(shape, device=self.device)
 
         # go through the ddpm in reverse order (from t=T to t=0)
-        for i in reversed(range(0, self.timesteps)):
+        t_end = 0 if early_stop is None else early_stop
+        for i in reversed(range(t_end, self.timesteps)):
             t = torch.full((shape[0],), i, device=self.device, dtype=torch.long)
             img = self.p_sample(img, t)
         return img
 
     @torch.no_grad()
-    def sample(self, batch_size:int=16, every:int=1):
+    def sample(self, batch_size:int=16, every:int=1, early_stop:int=None):
         """Sample a batch of images from model."""
-        return self.p_sample_loop((batch_size, *self.sample_shape), every)
+        return self.p_sample_loop((batch_size, *self.sample_shape), every, early_stop)
 
     def q_sample(self, x:tensor, t:tensor, eps:tensor):
         """

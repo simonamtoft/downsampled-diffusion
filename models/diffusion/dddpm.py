@@ -75,7 +75,7 @@ class DownsampleDDPM(DDPM):
         return x_recon, z_recon
 
     @torch.no_grad()
-    def sample(self, batch_size:int=16, every:int=1) -> tuple:
+    def sample(self, batch_size:int=16, every:int=1, early_stop:int=None) -> tuple:
         """
         Sample a batch of images in latent space, and upsample these to original
         image space.
@@ -84,9 +84,8 @@ class DownsampleDDPM(DDPM):
             x_sample (tensor):    A tensor of batch_size samples in original image space.
             z_sample (tensor):    A tensor of batch_size samples in latent space.
         """
-        z_sample = self.p_sample_loop((batch_size, *self.sample_shape), every)
+        z_sample = self.p_sample_loop((batch_size, *self.sample_shape), every, early_stop)
         x_sample = self.rescaled_upsample(z_sample)
-        # x_sample = self.upsample(z_sample)
         assert list(z_sample.shape)[1:] == self.sample_shape, f'mismatch between {list(z_sample.shape)[1:]} and {self.sample_shape}'
         assert list(x_sample.shape)[1:] == self.x_shape, f'mismatch between {list(x_sample.shape)[1:]} and {self.x_shape}'
         return x_sample, z_sample
