@@ -9,9 +9,9 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 
 # ONLY CHANGE STUFF HERE
-saved_model = 'chq_x3_t100_act'
+saved_model = 'celeba'
 saved_sample = saved_model
-fid_samples = 10000
+fid_samples = 50000
 
 # Directories etc.
 WANDB_PROJECT = 'ddpm-test'
@@ -32,18 +32,23 @@ if config['model'] == 'dddpm':
 # get name of reference batch
 if config['dataset'] == 'mnist':
     reference_batch = 'mnist_32_10k.npy'
-elif config['dataset'] == 'celeba_hq':
-    reference_batch = 'celeba_hq_256_10k.npy'
-elif config['dataset'] == 'celeba_hq_64':
-    if fid_samples == 10000:
-        reference_batch = 'celeba_hq_64_10k.npy'
-    elif fid_samples == 24000:
-        reference_batch = 'celeba_hq_64_24k.npy'
 elif config['dataset'] == 'cifar10':
     if fid_samples == 10000:
         reference_batch = 'cifar10_10k.npy'
     elif fid_samples == 50000:
         reference_batch = 'cifar10_50k.npy'
+elif config['dataset'] == 'celeba':
+    if fid_samples == 10000:
+        reference_batch = 'celeba_10k.npy'
+    elif fid_samples == 50000:
+        reference_batch = 'celeba_50k.npy'
+elif config['dataset'] == 'celeba_hq_64':
+    if fid_samples == 10000:
+        reference_batch = 'celeba_hq_64_10k.npy'
+    elif fid_samples == 24000:
+        reference_batch = 'celeba_hq_64_24k.npy'
+elif config['dataset'] == 'celeba_hq':
+    reference_batch = 'celeba_hq_256_10k.npy'
 
 # load samples and reference images and test data
 samples = np.load(os.path.join(SAMPLE_DIR, f'{saved_sample}.npy'))
