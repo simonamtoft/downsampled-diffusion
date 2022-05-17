@@ -98,7 +98,6 @@ class Trainer(object):
     def finalize(self) -> None:
         """Finalize training by saving the model to wandb and finishing the wandb run."""
         self.save_checkpoint()
-        wandb.save(self.checkpoint_name)
         wandb.finish()
         os.remove(self.checkpoint_name)
         print(f"Training of {self.name} completed!")
