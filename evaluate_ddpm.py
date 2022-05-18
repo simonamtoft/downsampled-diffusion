@@ -3,13 +3,13 @@ import json
 import torch
 from models import Unet, DDPM, DownsampleDDPM
 from utils import get_dataloader, get_color_channels, \
-    Evaluator, compute_test_losses, \
+    Evaluator, compute_test_losses, get_model_state_dict, \
     SAMPLE_DIR, CHECKPOINT_DIR, DATA_DIR, REFERENCE_DIR
 import tensorflow.compat.v1 as tf
 import numpy as np
 
 # ONLY CHANGE STUFF HERE
-saved_model = 'celeba'
+saved_model = 'celeba_x1'
 saved_sample = saved_model
 fid_samples = 50000
 
@@ -19,12 +19,10 @@ device = 'cuda'
 
 # load saved data
 save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
-config = save_data['config']
-if 'ema_model' in config:
-    model_state_dict = save_data['ema_model']
-else:
-    model_state_dict = save_data['model']
+model_state_dict = get_model_state_dict(save_data)
 
+# fix config if missing
+config = save_data['config']
 if config['model'] == 'dddpm':
     if 'force_latent' not in config:
         config['force_latent'] = False
