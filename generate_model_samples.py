@@ -11,7 +11,7 @@ from utils import get_color_channels, fix_samples, \
     CHECKPOINT_DIR, SAMPLE_DIR, SAMPLE_LATENT_DIR 
 
 device = 'cuda'
-saved_model = 'celeba'
+saved_model = 'cifar10'
 fid_samples = 50000
 batch_size = 192
 sample_every = 1
@@ -21,11 +21,6 @@ save_data = torch.load(os.path.join(CHECKPOINT_DIR, f'{saved_model}.pt'))
 model_state_dict = get_model_state_dict(save_data)
 config = save_data['config']
 config['batch_size'] = batch_size
-
-if 'force_latent' not in config:
-    config['force_latent'] = False
-if 'rnd_flip' not in config:
-    config['rnd_flip'] = False
 
 # Setup DDPM model
 latent_model = Unet(config)
