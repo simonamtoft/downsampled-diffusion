@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from torch import tensor
 
-from utils import min_max_norm_image
 from models.downsampled import get_downsampling, \
     get_upsampling
 from .ddpm import DDPM

@@ -140,3 +140,7 @@ jonathanho/*
 fengnima_pretrained/*
 evaluate_fengnima.py
 generate_fengnima.py
+
+test_downsampling_time.py
+test_sample_time_larger_unet.py
+sample_x101.py

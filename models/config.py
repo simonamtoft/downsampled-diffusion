@@ -1,1 +1,1 @@
-MODEL_NAMES = ['ddpm', 'vae', 'lvae', 'draw']
+MODEL_NAMES = ['ddpm']

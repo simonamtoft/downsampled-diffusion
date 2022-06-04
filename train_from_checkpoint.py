@@ -6,7 +6,7 @@ from trainers import setup_trainer
 from utils import CHECKPOINT_DIR, DATA_DIR
 
 WANDB_PROJECT = 'ddpm-test'
-CHECKPOINT_NAME = 'celeba_x2_2.pt'
+CHECKPOINT_NAME = 'celeba_x2_3.pt'
 
 if __name__ == '__main__':
     # load checkpoint

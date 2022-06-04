@@ -3,13 +3,9 @@ from operator import mul
 from functools import reduce
 from utils import get_dataloader, \
     get_color_channels, seed_everything
-from models import DRAW, Unet, DDPM, \
-    DownsampleDDPM, DownsampleDDPMAutoencoder, \
-    VariationalAutoencoder, LadderVariationalAutoencoder
+from models import Unet, DDPM, \
+    DownsampleDDPM, DownsampleDDPMAutoencoder
 from .trainer_ddpm import TrainerDDPM, TrainerDownsampleDDPM
-from .trainer_draw import TrainerDRAW
-from .trainer_vae import TrainerVAE
-
 
 def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp', seed:int=None):
     """Instantiate a trainer for a model specified by the config dict"""
@@ -47,15 +43,6 @@ def setup_trainer(config:dict, mute:bool, data_root:str, wandb_project:str='tmp'
         else:
             model = DownsampleDDPM(config, latent_model, device, color_channels)
         trainer = TrainerDownsampleDDPM(config, model, *train_args)
-    elif config['model'] == 'draw':
-        model = DRAW(config, x_dim)
-        trainer = TrainerDRAW(config, model, *train_args)
-    elif config['model'] == 'vae':
-        model = VariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, *train_args)
-    elif config['model'] == 'lvae':
-        model = LadderVariationalAutoencoder(config, x_dim)
-        trainer = TrainerVAE(config, model, *train_args)
     else: 
         raise NotImplementedError('Specified model not implemented.')
     config['model_size'] = sum(p.numel() for p in model.parameters())

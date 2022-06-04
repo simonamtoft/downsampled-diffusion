@@ -2,13 +2,7 @@ import math
 import torch
 from torch import nn, tensor
 from einops import rearrange
-import torch.nn.functional as F
 from models.utils import exists
-
-
-# class Mish(nn.Module):
-#     def forward(self, x:tensor) -> tensor:
-#         return x * torch.tanh(F.softplus(x))
 
 
 class Residual(nn.Module):

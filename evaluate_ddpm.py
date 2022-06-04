@@ -9,7 +9,7 @@ import tensorflow.compat.v1 as tf
 import numpy as np
 
 # ONLY CHANGE STUFF HERE
-saved_model = 'celeba_x1'
+saved_model = 'celeba_x2'
 saved_sample = saved_model
 fid_samples = 50000
 

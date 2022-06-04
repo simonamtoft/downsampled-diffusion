@@ -56,11 +56,7 @@ class Trainer(object):
         
         # define how to log losses
         # currently not used for DDPM.
-        # if self.n_channels == 1:
         self.loss_handle = reduce_mean
-        # else:
-        #     self.loss_handle = partial(mean_and_bits_dim, self.x_dim)
-        # list holding training objective for each train step
         self.train_losses = []
         
         # dimensionality of data

@@ -3,9 +3,8 @@ import torch
 import numpy as np
 from PIL import Image
 from torchvision.transforms import Compose, Resize, \
-    CenterCrop, ToTensor, RandomHorizontalFlip, \
-    Normalize, Lambda
-from torchvision.datasets import CelebA, CIFAR10, \
+    CenterCrop, ToTensor, RandomHorizontalFlip, Lambda
+from torchvision.datasets import CIFAR10, \
     CIFAR100, MNIST, Omniglot, DatasetFolder
 from torch.utils.data import DataLoader
 

@@ -11,7 +11,7 @@ from utils import get_color_channels, fix_samples, \
     CHECKPOINT_DIR, SAMPLE_DIR, SAMPLE_LATENT_DIR 
 
 device = 'cuda'
-saved_model = 'cifar10'
+saved_model = 'celeba_x2'
 fid_samples = 50000
 batch_size = 192
 sample_every = 1

@@ -1,10 +1,9 @@
 import torch
 from torch import nn, tensor
-from models.utils import exists, default
+from models.utils import exists
 from models.unet.blocks import SinusoidalPosEmb, \
     ResnetBlock, Residual, LinearAttention, \
     PreNorm, Downsample, Upsample, Block
-# Mish, \
 
 
 class Unet(nn.Module):

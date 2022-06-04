@@ -1,6 +1,5 @@
 import torch
 from torch import tensor
-import numpy as np
 from inspect import isfunction
 
 

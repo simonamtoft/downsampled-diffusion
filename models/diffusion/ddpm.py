@@ -13,7 +13,7 @@ from functools import partial
 
 from utils import flat_bits, reduce_mean, reduce_sum
 from models.utils import discretized_gaussian_log_likelihood, \
-    l1_loss, l2_loss, normal_kl, extract, noise_like
+    l2_loss, normal_kl, extract, noise_like
 from .beta_schedule import make_beta_schedule
 
 OBJETIVE_NAMES = ['simple', 'hybrid', 'vlb']
