@@ -1,6 +1,8 @@
 # Downsampled Denoising Diffusion Probabilistic Models
 Diffusion models are deep generative models that can generate high quality images achieving state-of-the-art FID scores on most standard benchmark datasets. However, generating images from this new class of models are extremely time consuming compared to previous state-of-the-art models, making it troublesome to gain the full potential of these models. This thesis presents an investigation of the balance between sampling time and image quality, with introducing the downsampled denoising diffusion probabilistic models, which adds light-weight downsampling and upsampling networks around the standard unconditional DDPM implementation. This method achieves between 29 and 266 times faster sampling on $256\times 256$ datasets, while providing FID scores of 37.8 on CIFAR-10, 7.9 on CelebA and 20.7 on CelebAMask-HQ.
 
+![dDDPM example](/images/x4upsample.png)
+
 
 ## Package Requirements
 
