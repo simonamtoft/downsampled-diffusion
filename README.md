@@ -18,7 +18,7 @@ pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f ht
 ```
 
 ## Scripts
-Training of a dDDPM is performed by running `train.py`, where hyper paremeters can be altered in the config dict. To run a dDDPM x3 for 800k training steps on CelebAMask-HQ use the following
+Training of a dDDPM is performed by running `train.py`, where hyper paremeters can be altered in the config dict. To run a dDDPM x3 for 800k training steps on CelebAMask-HQ with a batch size of 32 use the following
 ```cli
 python train.py -m ddpm -e 800000 -mute -d celeba_hq -bs 32 -is 256 -downsample 3
 ```
