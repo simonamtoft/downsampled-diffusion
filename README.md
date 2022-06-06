@@ -31,7 +31,7 @@ python generate_model_samples.py
 
 ## Datasets
 
-This GitHub repository uses the following datasets: `MNIST`, `CIFAR-10`, `CelebA` and `CelebAMask-HQ`. The `MNIST` and `CIFAR-10` datasets are simply downloaded using the `download=True` argument in their respective `torchvision.datasets` class. The `CelebA` dataset is downloaded from [Kaggle](https://www.kaggle.com/datasets/jessicali9530/celeba-dataset) and then resized to `64 x 64`, while the `CelebAMask-HQ` is downloaded from [a GitHub repo](https://github.com/ndb796/CelebA-HQ-Face-Identity-and-Attributes-Recognition-PyTorch) where two instances are created by resizing the images to `256 x 256` and `64 x 64` respectively. For easy download you should be able to download all the datasets from [my Google Drive folder](https://drive.google.com/drive/folders/15sfoeQOmZ3DyEEeV4qfIe1GfRvarLkoG?usp=sharing).
+This GitHub repository uses the following datasets: `MNIST`, `CIFAR-10`, `CelebA` and `CelebAMask-HQ`. The `MNIST` and `CIFAR-10` datasets are simply downloaded using the `download=True` argument in their respective `torchvision.datasets` class. The `CelebA` dataset is downloaded from [Kaggle](https://www.kaggle.com/datasets/jessicali9530/celeba-dataset) and then resized to `64 x 64`, while the `CelebAMask-HQ` is downloaded from [a GitHub repo](https://github.com/ndb796/CelebA-HQ-Face-Identity-and-Attributes-Recognition-PyTorch) which is rescaled `256 x 256`. For easy download you should be able to download all the datasets from [my Google Drive folder](https://drive.google.com/drive/folders/15sfoeQOmZ3DyEEeV4qfIe1GfRvarLkoG?usp=sharing).
 
 ### Samples from `MNIST` training set
 ![MNIST training examples](/images/mnist.png)
@@ -44,9 +44,6 @@ This GitHub repository uses the following datasets: `MNIST`, `CIFAR-10`, `CelebA
 
 ### Samples from `CelebAMask-HQ 256x256` training set
 ![CelebAMask-HQ-256 training examples](/images/celeba_hq.png)
-
-### Samples from `CelebAMask-HQ 64x64` training set
-![CelebAMask-HQ-64 training examples](/images/celeba_hq_64.png)
 
 
 ## Additional Notes
