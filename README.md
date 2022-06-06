@@ -46,7 +46,7 @@ This GitHub repository uses the following datasets: `MNIST`, `CIFAR-10`, `CelebA
 ![CelebAMask-HQ-256 training examples](/images/celeba_hq.png)
 
 ## Acknowledgements
-I would like to thank [Ole Winther](https://olewinther.github.io/) and [Giorgio Giannone](https://github.com/georgosgeorgos) for supervising this project and for all their insightful comments and suggestions throughout the course of this thesis.
+I would like to thank [Ole Winther](https://olewinther.github.io/) and [Giorgio Giannone](https://georgosgeorgos.github.io/) for supervising this project and for all their insightful comments and suggestions throughout the course of this thesis.
 
 ## Additional Notes
 If you are running weight and biases (wandb) as done in this project, it might be a good idea to once in a while delete local files that are synced to the website with the following command `wandb sync --clean`.
