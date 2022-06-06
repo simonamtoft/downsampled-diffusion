@@ -17,6 +17,17 @@ Then install torch for GPU (CUDA 11.1) with:
 pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
+## Scripts
+Training of a dDDPM is performed by running `train.py`, where hyper paremeters can be altered in the config dict. To run a dDDPM x3 for 800k training steps on CelebAMask-HQ use the following
+```cli
+python train.py -m ddpm -e 800000 -mute -d celeba_hq -bs 32 -is 256 -downsample 3
+```
+In order to run the standard DDPM set the `-downsample` flag to 0.
+
+Additionally, samples can be generated from a saved checkpoint of the dDDPM by running `generate_model_samples.py`, where the `saved_model` variable inside the script is defined to be the name of the checkpoint located at the `CHECKPOINT_DIR` defined in `utils.paths`.
+```cli
+python generate_model_samples.py
+```
 
 ## Datasets
 
